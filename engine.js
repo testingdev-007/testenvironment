@@ -35,7 +35,9 @@ const GS = {
   // Gamification tracking — resets each run, never touches GAMIFICATION object
   quizCorrect:0, quizTotal:0,
   phishReported:false, ipWon:false, livesLost:0,
-  selectedEmailId:null, // currently highlighted inbox email
+  selectedEmailId:null,
+  // Per-session escalation control
+  sessionFlags:{allGreenUsed:false, highEscalationUsed:false, lastWasLow:false},
 };
 
 function uid(){return Math.random().toString(36).substr(2,8).toUpperCase();}
@@ -233,6 +235,28 @@ function schedAutoAdvance(delay=18000){
   }
 }
 
+
+// ── SCENARIO PARAMS — controls escalation count, type and edge cases ──
+function buildScenarioParams(){
+  const f=GS.sessionFlags;
+  const r=GS.round+1; // about to play this round
+
+  // All-green: once per game, not first round, not if last was already low
+  if(!f.allGreenUsed && !f.lastWasLow && r>=2 && r<GS.totalRounds && Math.random()>.72){
+    f.allGreenUsed=true;
+    return {numEscalations:0,escalationType:'none',includeEdgeCase:false,numItems:6};
+  }
+  // High escalation: once per game, not first round
+  if(!f.highEscalationUsed && r>=2 && Math.random()>.55){
+    f.highEscalationUsed=true;
+    return {numEscalations:randInt(3,4),escalationType:pick(['RED_RED_AMBER','RED_RED_RED','RED_AMBER_AMBER']),includeEdgeCase:true,numItems:7};
+  }
+  // Prevent two sequential low-escalation rounds
+  const minE=f.lastWasLow?2:1;
+  const numE=pick([1,2,2,2,2,3].filter(n=>n>=minE));
+  return {numEscalations:numE,escalationType:pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase:Math.random()>.3,numItems:6};
+}
+
 // ── LOAD MODULE ───────────────────────────────────────────────
 function loadModule(id){
   const mod=MODULES[id];if(!mod)return;
@@ -243,7 +267,10 @@ function loadModule(id){
   GS.modId=id;GS.correctTool=mod.tools.correct;GS.toolOk=false;
   GS.reportReady=false;GS.badTools=0;GS.active=true;
   GS.scenarioRagDone=true;
-  GS.scenario=mod.generateScenario();
+  const _params=buildScenarioParams();
+  GS.scenario=mod.generateScenario(_params);
+  const _esc=GS.scenario.filter(s=>s.ragAnswer!=='G').length;
+  GS.sessionFlags.lastWasLow=_esc<=1;
   document.getElementById('scenProg').textContent='ROUND '+GS.round+'/'+GS.totalRounds;
   setSim(mod.name);setStep(1);
   resetTool();
@@ -284,8 +311,8 @@ function addToInbox(email){
     if(!email.phish){showEmailContent(email);setStep(2);}
   });
   list.insertBefore(el,list.firstChild);
-  // Auto-select and show content straight away
-  setTimeout(()=>{ selectInboxEmail(email.id, email); if(!email.phish) showEmailContent(email); },350);
+  // Select and highlight in inbox (buttons enabled), but do NOT auto-open email pane
+  setTimeout(()=>selectInboxEmail(email.id, email),350);
   // Team chat hint for phishing emails
   if(email.phish){setTimeout(()=>{const e2=pick(PHISHING_EXCEPTION_CHAT.onPhishingArrived);gcMsg(e2.persona,pick(e2.msgs));},1800);}
 }
@@ -500,6 +527,8 @@ function openDebrief(){
   const savedScenario=GS.scenario?[...GS.scenario]:[];
   GS.debriefModId=savedId;
   GS.plenReportDone=false;GS.plenQuizAnswered=0;
+  // Remove button immediately so it cannot be clicked again
+  document.getElementById('toolBar').innerHTML='<span class="bhint">📋 Debrief open — see the right panel!</span>';
   showResults(savedId);
   const emailEl=document.querySelector('.eitem.sel');
   if(emailEl){emailEl.classList.add('done');emailEl.classList.remove('sel','unread');}
@@ -531,7 +560,7 @@ function showResults(savedId){
   // Report result appended later by plenReport() once answered
   h+=`<div id="reportResultSlot"></div>`;
   document.getElementById('resultsView').innerHTML=h;showTab('R');
-  if(GS.round>=GS.totalRounds&&!GS.queue.length)setTimeout(showEndgame,9000);
+  // endgame triggered by closePlenary() after quiz completes — not here
 }
 
 // ── DDOS GRAPH ────────────────────────────────────────────────
@@ -961,8 +990,8 @@ function handleHopAnswer(correct,hop,isFinal){
       s.hops.push(...extras);
       // Re-mark last 2 as hard
       s.hops.forEach((h,i) => { h.hard = i >= s.hops.length - 2; });
-      gcMsg('priya',"Signal rerouting — more hops detected! 🌍",200);
-      gcMsg('marcus',"Hacker\'s bouncing through more servers! Stay on them! 💻",900);
+      gcMsg('priya',`⚡ They know we\'re onto them — rerouting through ${s.hops.length} servers now!`,200);
+      gcMsg('marcus',`Clever hacker — but we\'re cleverer! ${s.hops.length} hops total. Don\'t lose them! 💻`,900);
     }
     if(elapsed<2000){
       triggerTraceGlitch(()=>advanceHop());
@@ -1027,7 +1056,7 @@ function endTrace(won,reason){
 // ── RETRY MODAL — one second chance per trace ──────────────────
 function showIPRetryModal(reason){
   document.getElementById('ipRetryReason').textContent=reason;
-  document.getElementById('ipRetryModal').classList.add('open');
+  document.getElementById('ipRetryModal').style.display='flex';
 }
 
 function retryIPTrace(){
@@ -1051,7 +1080,7 @@ function retryIPTrace(){
 }
 
 function declineRetryIPTrace(){
-  document.getElementById('ipRetryModal').classList.remove('open');
+  document.getElementById('ipRetryModal').style.display='none';
   const s=GS.ip;
   s.usedRetry=true;
   endTrace(false,'Trace abandoned.');
@@ -1266,7 +1295,7 @@ function resetAll(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.getElementById('plenaryModal').classList.remove('open');
   document.body.classList.remove('alert-mode');
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null});
+  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
   document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
