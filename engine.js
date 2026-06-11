@@ -687,6 +687,66 @@ const CITIES=[
 // Continent polygons as [lon, lat] pairs for equirectangular projection
 
 
+function startTrace(){
+  document.getElementById('ipMode').style.display='none';
+  document.getElementById('ipTrace').style.display='';
+  document.getElementById('ipEasyOpts').style.display='none';
+  document.getElementById('ipStat').textContent='';
+  document.getElementById('ipCurrentIP').textContent='';
+  document.getElementById('ipCurrentCity').textContent='Initialising trace…';
+
+  const hopCount=Math.max(5,GS.maxH<=1?8:GS.maxH<=2?7:GS.maxH<=3?6:5);
+  const hops=genHops(hopCount);
+  GS.ip={hops,cur:-1,timer:60,done:false,ti:null,
+         waitingForAnswer:false,currentChallengeHop:null,usedRetry:false};
+
+  document.getElementById('ipTimer').textContent='60';
+  document.getElementById('ipTimer').classList.remove('danger');
+  try{SFX.bgStart();}catch(ex){}
+
+  // 5-second countdown before trace begins
+  document.getElementById('ipCurrentCity').textContent='Get ready — trace starting in 5!';
+  let cd=5;
+  const cdInt=setInterval(()=>{
+    cd--;try{SFX.tick();}catch(ex){}
+    if(cd>0){
+      document.getElementById('ipCurrentCity').textContent='Get ready — '+cd+'!';
+    } else {
+      clearInterval(cdInt);
+      startIPCountdown();
+      GS.ip.cur=0;
+      flashHop(hops[0],true,()=>{
+        document.getElementById('ipHopInfo').textContent='HOP 1/'+hops.length+' — '+hops[0].city+', '+hops[0].country;
+        presentHopChallenge(0);
+      });
+    }
+  },1000);
+}
+
+function startIPCountdown(){
+  const s=GS.ip;
+  s.ti=setInterval(()=>{
+    s.timer--;
+    const el=document.getElementById('ipTimer');
+    el.textContent=s.timer;
+    if(s.timer<=15){el.classList.add('danger');try{SFX.tick();}catch(ex){};}
+    if(s.timer===15){try{SFX.bgIntensify();}catch(ex){}}
+    if(s.timer<=0){clearInterval(s.ti);endTrace(false,'Time ran out!');}
+  },1000);
+}
+
+function advanceHop(){
+  const s=GS.ip;if(s.done||s.cur>=s.hops.length-1)return;
+  s.cur++;
+  const hop=s.hops[s.cur];
+  flashHop(hop,false,()=>{
+    document.getElementById('ipHopInfo').textContent='HOP '+(s.cur+1)+'/'+s.hops.length+' — '+hop.city+', '+hop.country;
+    const pool=IP_TRACE_CHAT.onHop;
+    if(pool){const e=pick(pool);gcMsg(e.persona,pick(e.msgs));}
+    presentHopChallenge(s.cur);
+  });
+}
+
 function presentHopChallenge(hopIdx){
   try{SFX.sonar();}catch(ex){}
   const s=GS.ip;const hop=s.hops[hopIdx];
