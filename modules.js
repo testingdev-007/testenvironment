@@ -11,6 +11,14 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 function jitter(base, pct=0.15) { return Math.round(base * (1 + (Math.random()-0.5)*pct*2)); }
 
+// ── SCENARIO UTILITY ─────────────────────────────────────────
+function buildRagProfile(type,count){
+  if(!count)return[];
+  const base={'RED_RED':['R','R','R','R'],'RED_AMBER':['R','A','A','A'],'AMBER_AMBER':['A','A','A','A'],'RED_RED_AMBER':['R','R','A','A'],'RED_AMBER_AMBER':['R','A','A','A'],'RED_RED_RED':['R','R','R','R']}[type]||['R','A'];
+  const out=[];for(let i=0;i<count;i++)out.push(base[Math.min(i,base.length-1)]);
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────
 // MODULE 1: DDoS ATTACK
 // ─────────────────────────────────────────────────────────────
@@ -31,78 +39,28 @@ MODULES.ddos = {
     correct: 'Network Traffic Monitor',
     decoys: ['Password Audit Tool','Email Header Analyser','DNS Lookup Tool','System Log Viewer','Firewall Rules Editor']
   },
-  generateScenario() {
-    const services = [
-      { name: 'Homepage', purpose: 'Main website people visit first' },
-      { name: 'Login Page', purpose: 'Where people type their username and password' },
-      { name: 'Image Loader', purpose: 'Sends pictures to the website' },
-      { name: 'Search Bar', purpose: 'Lets people search for things' },
-      { name: 'Shop Checkout', purpose: 'Where people pay for things' },
-      { name: 'Admin Area', purpose: 'Secret area only staff can use' },
-      { name: 'Video Stream', purpose: 'Plays videos on the site' },
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const pool=[
+      {name:'Homepage',     purpose:'Main website people visit first'},
+      {name:'Login Page',   purpose:'Where people sign in'},
+      {name:'Image Loader', purpose:'Loads pictures and videos'},
+      {name:'Search Bar',   purpose:'Lets people search the site'},
+      {name:'Shop Checkout',purpose:'Where people pay for things'},
+      {name:'Admin Area',   purpose:'Staff-only management area'},
+      {name:'Video Stream', purpose:'Plays videos on the website'},
+      {name:'API Gateway',  purpose:'Connects apps to the website'},
+      {name:'CDN Server',   purpose:'Delivers images and files fast'},
     ];
-    const chosen = shuffle(services).slice(0, 5);
-    // Attack types — now with a 'productLaunch' edge case:
-    // productLaunch = traffic looks high but it IS a real busy period — GREEN
-    // Edge case: a service at exactly 10x (boundary!) — AMBER not RED
-    // clean = all normal
-    const attackType = pick(['volumetric','stealth','multi-vector','productLaunch','clean']);
-    return chosen.map((svc, i) => {
-      const baseline = randInt(150, 600);
-      let current, ragAnswer, actionAnswer, notes;
-
-      if (attackType === 'productLaunch') {
-        if (i === 0) {
-          const mult = randFloat(2.1, 2.8, 1);
-          current = Math.round(baseline * mult);
-          ragAnswer = 'A'; actionAnswer = 'throttle';
-          notes = `${mult}× the usual amount — above the warning level, even with today's product launch.`;
-        } else {
-          current = jitter(baseline, 0.15);
-          ragAnswer = 'G'; actionAnswer = 'ignore';
-          notes = `${Math.round(current).toLocaleString()}/min — close to the ${baseline.toLocaleString()}/min average.`;
-        }
-      } else if (attackType === 'clean') {
-        current = jitter(baseline, 0.1);
-        ragAnswer = 'G'; actionAnswer = 'ignore';
-        notes = `${Math.round(current).toLocaleString()}/min — close to the ${baseline.toLocaleString()}/min average.`;
-      } else if (attackType === 'volumetric' && i === 0) {
-        const mult = randInt(13, 35);
-        current = baseline * mult;
-        ragAnswer = 'R'; actionAnswer = 'block';
-        notes = `${mult}× higher than normal right now.`;
-      } else if (attackType === 'stealth' && i < 2) {
-        const isBoundary = (i === 1);
-        const mult = isBoundary ? randFloat(3.0, 3.4, 1) : randFloat(4.5, 8.0, 1);
-        current = Math.round(baseline * mult);
-        ragAnswer = 'A'; actionAnswer = 'throttle';
-        notes = isBoundary
-          ? `${mult}× the usual amount — just above the warning level.`
-          : `${mult}× the usual amount right now.`;
-      } else if (attackType === 'multi-vector' && i < 3) {
-        if (i === 0) {
-          const mult = randInt(11, 22);
-          current = baseline * mult;
-          ragAnswer = 'R'; actionAnswer = 'block';
-          notes = `${mult}× higher than normal — main spike.`;
-        } else {
-          const mult = randFloat(3.5, 7.0, 1);
-          current = Math.round(baseline * mult);
-          ragAnswer = 'A'; actionAnswer = 'throttle';
-          notes = `${mult}× the usual amount.`;
-        }
-      } else {
-        current = jitter(baseline, 0.1);
-        ragAnswer = 'G'; actionAnswer = 'ignore';
-        notes = `${Math.round(current).toLocaleString()}/min — close to the ${baseline.toLocaleString()}/min average.`;
-      }
-      return {
-        name: svc.name, purpose: svc.purpose,
-        avgHitsMin: baseline, currentHitsMin: Math.round(current),
-        ragAnswer, actionAnswer, notes,
-        handled: false, userRag: null, userAction: null,
-        graphData: this._generateGraphHistory(baseline, Math.round(current))
-      };
+    const chosen=shuffle(pool).slice(0,numItems);
+    const rag=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    return chosen.map((svc,i)=>{
+      const base=randInt(150,600);
+      if(rag[i]==='R'){const m=randInt(11,35);const cur=base*m;return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:Math.round(cur),ragAnswer:'R',actionAnswer:'block',notes:`${m}× higher than normal.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,Math.round(cur))};}
+      else if(rag[i]==='A'){const m=randFloat(3.2,9.5,1);const cur=Math.round(base*m);return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:cur,ragAnswer:'A',actionAnswer:'throttle',notes:`${m}× the usual amount.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,cur)};}
+      else if(i===edgeAt){const m=randFloat(1.8,2.4,1);const cur=Math.round(base*m);return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:cur,ragAnswer:'G',actionAnswer:'ignore',notes:`${m}× usual — today's product launch is bringing real visitors.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,cur)};}
+      else{const cur=jitter(base,0.1);return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:Math.round(cur),ragAnswer:'G',actionAnswer:'ignore',notes:`${Math.round(cur).toLocaleString()}/min — close to the ${base.toLocaleString()}/min average.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,Math.round(cur))};}
     });
   },
   _generateGraphHistory(baseline, current) {
@@ -164,63 +122,20 @@ MODULES.malware = {
     correct: 'Process Monitor',
     decoys: ['Network Traffic Monitor','Email Header Analyser','Bandwidth Checker','Firewall Rules Editor','Packet Sniffer']
   },
-  generateScenario() {
-    // Processes — includes trickier edge cases:
-    // - Legit-sounding name but unknown = RED (e.g. svch0st.exe — zero not O)
-    // - High CPU but it's Windows Update = GREEN (edge case: legitimate reason)
-    // - Low CPU but clearly fake name = RED (backdoors are sneaky!)
-    const processes = [
-      { name: 'svchost.exe',      legitimate: true,  cpuBase: 1.2, memBase: 48,   purpose: 'Windows system service (real)' },
-      { name: 'chrome.exe',       legitimate: true,  cpuBase: 8,   memBase: 340,  purpose: 'Google Chrome browser' },
-      { name: 'explorer.exe',     legitimate: true,  cpuBase: 0.8, memBase: 62,   purpose: 'Windows file explorer' },
-      { name: 'svch0st.exe',      legitimate: false, cpuBase: 45,  memBase: 890,  purpose: '⚠️ NOT real! Zero instead of O — sneaky fake!', edgeCase: 'lookalike' },
-      { name: 'WinUpdate.exe',    legitimate: true,  cpuBase: 55,  memBase: 620,  purpose: 'Windows Update (high CPU is normal when updating)', edgeCase: 'highCpuLegit' },
-      { name: 'cryptminer.tmp',   legitimate: false, cpuBase: 92,  memBase: 1200, purpose: '⚠️ Suspicious name — not a real Windows program!' },
-      { name: 'helper32.exe',     legitimate: false, cpuBase: 28,  memBase: 420,  purpose: '⚠️ Unknown origin — not found in software list' },
-      { name: 'msedge.exe',       legitimate: true,  cpuBase: 6,   memBase: 280,  purpose: 'Microsoft Edge browser' },
-      { name: 'backdoor_srv.exe', legitimate: false, cpuBase: 3,   memBase: 55,   purpose: '⚠️ Fake server — low CPU to hide, but the name gives it away!', edgeCase: 'lowCpuBad' },
-      { name: 'antimalware.exe',  legitimate: true,  cpuBase: 2.1, memBase: 95,   purpose: 'Windows Defender (your antivirus)' }
-    ];
-
-    const chosen = shuffle(processes).slice(0, 5);
-    const forceMalware = Math.random() > 0.2; // 80% chance of at least one bad process
-
-    return chosen.map((proc, i) => {
-      const cpu = jitter(proc.cpuBase, 0.15);
-      const mem = jitter(proc.memBase, 0.12);
-      const networkKBs = (!proc.legitimate) ? randInt(200, 4000) : randInt(0, 80);
-
-      let ragAnswer, actionAnswer, notes;
-
-      if (!proc.legitimate) {
-        if (proc.edgeCase === 'lookalike') {
-          ragAnswer = 'R'; actionAnswer = 'quarantine';
-          notes = `Not recognised in the standard program list.`;
-        } else if (proc.edgeCase === 'lowCpuBad') {
-          ragAnswer = 'R'; actionAnswer = 'quarantine';
-          notes = `Not a known Windows program. CPU is low — but the name gives it away.`;
-        } else {
-          ragAnswer = 'R'; actionAnswer = 'quarantine';
-          notes = `Not a known Windows program.`;
-        }
-      } else if (proc.edgeCase === 'highCpuLegit') {
-        ragAnswer = 'G'; actionAnswer = 'ignore';
-        notes = `Windows Update.`;
-      } else if (cpu > 70 && proc.legitimate) {
-        ragAnswer = 'A'; actionAnswer = 'investigate';
-        notes = `Real program but CPU is quite high right now (${cpu.toFixed(1)}%).`;
-      } else {
-        ragAnswer = 'G'; actionAnswer = 'ignore';
-        notes = `Known Windows program.`;
-      }
-
-      return {
-        name: proc.name, purpose: proc.purpose,
-        cpu: parseFloat(cpu.toFixed(1)), memMB: mem, networkKBs,
-        ragAnswer, actionAnswer, notes,
-        handled: false, userRag: null, userAction: null
-      };
-    });
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const malNames=['cryptminer.tmp','svch0st.exe','xyzwin32.exe','backdoor_srv.exe','helper32.exe','update_helper.tmp'];
+    const legit=[{name:'svchost.exe',cpuBase:1.2,memBase:48,purpose:'Windows system service'},{name:'chrome.exe',cpuBase:8,memBase:340,purpose:'Google Chrome browser'},{name:'explorer.exe',cpuBase:0.8,memBase:62,purpose:'Windows file explorer'},{name:'msedge.exe',cpuBase:6,memBase:280,purpose:'Microsoft Edge browser'},{name:'antimalware.exe',cpuBase:2.1,memBase:95,purpose:'Windows Defender'},{name:'winlogon.exe',cpuBase:0.4,memBase:18,purpose:'Windows login manager'},{name:'taskhost.exe',cpuBase:0.6,memBase:35,purpose:'Windows task host'}];
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    const items=[];
+    for(let i=0;i<numItems;i++){
+      if(rp[i]==='R'){const nm=pick(malNames);const cpu=randFloat(40,95,1);items.push({name:nm,purpose:'Not a known Windows program',cpu,memMB:randInt(400,1400),networkKBs:randInt(500,5000),ragAnswer:'R',actionAnswer:'quarantine',notes:'Not recognised in the standard program list.',handled:false,userRag:null,userAction:null});}
+      else if(rp[i]==='A'){const p=pick(legit);const cpu=randFloat(72,90,1);items.push({name:p.name,purpose:p.purpose,cpu,memMB:Math.round(jitter(p.memBase,0.15)),networkKBs:randInt(80,300),ragAnswer:'A',actionAnswer:'investigate',notes:`Real program but CPU is quite high right now (${cpu.toFixed(1)}%).`,handled:false,userRag:null,userAction:null});}
+      else if(i===edgeAt){const cpu=randFloat(48,66,1);items.push({name:'WinUpdate.exe',purpose:'Windows Update',cpu,memMB:randInt(400,700),networkKBs:randInt(10,80),ragAnswer:'G',actionAnswer:'ignore',notes:'Windows Update.',handled:false,userRag:null,userAction:null});}
+      else{const p=pick(legit);items.push({name:p.name,purpose:p.purpose,cpu:parseFloat(jitter(p.cpuBase,0.2).toFixed(1)),memMB:Math.round(jitter(p.memBase,0.12)),networkKBs:randInt(0,50),ragAnswer:'G',actionAnswer:'ignore',notes:'Known Windows program.',handled:false,userRag:null,userAction:null});}
+    }
+    return items;
   },
   reportTeams: { correct: 'Incident Response Team', incorrect: 'Facilities Management' },
   completionText(mode, scenario) {
@@ -351,75 +266,18 @@ MODULES.ransomware = {
     correct: 'File Integrity Monitor',
     decoys: ['Network Traffic Monitor','Database Query Analyser','Email Header Analyser','Process Monitor','Wi-Fi Scanner']
   },
-  generateScenario() {
-    // EDGE CASES in this module:
-    // 1. A drive showing high writes but it's a SCHEDULED BACKUP (should be IGNORE — not ransomware!)
-    // 2. A drive with a very low encryption count but new suspicious extension (early-stage = AMBER/investigate)
-    // 3. Full-blown ransomware = lots encrypted + suspicious extension = RED/isolate
-    const drives = [
-      { name: 'C:\\ System Drive',        purpose: 'Operating system and programs' },
-      { name: 'D:\\ Documents Drive',     purpose: 'Staff documents and files' },
-      { name: 'E:\\ Backup Share',        purpose: 'Nightly backup storage', isBackupDrive: true },
-      { name: 'F:\\ Media Files',         purpose: 'Company photos and videos' },
-      { name: '\\\\Server01\\HR',         purpose: 'HR files and records' },
-      { name: '\\\\Server02\\Finance',    purpose: 'Finance spreadsheets' },
-    ];
-
-    const chosen = shuffle(drives).slice(0, 5);
-    const attackStarted = Math.random() > 0.2;
-    const attackDrive   = attackStarted ? randInt(0, Math.min(2, chosen.length-1)) : -1; // 1-3 drives
-
-    return chosen.map((drive, i) => {
-      const isAttacked   = attackStarted && i <= attackDrive;
-      const isFront      = isAttacked && i === attackDrive;
-      const totalFiles   = randInt(1200, 45000);
-
-      // Edge case: high writes on a backup drive but NOT ransomware
-      const isNightlyBackup = drive.isBackupDrive && !isAttacked && Math.random() > 0.4;
-
-      let encryptedFiles, newExtensions, writeOpsMin, ragAnswer, actionAnswer, notes;
-
-      if (isNightlyBackup) {
-        encryptedFiles = Math.round(totalFiles * randFloat(0.1, 0.3) / 100);
-        newExtensions  = '.bak';
-        writeOpsMin    = randInt(600, 3500);
-        ragAnswer      = 'G'; actionAnswer = 'ignore';
-        notes          = `Extension: .bak`;
-      } else if (isAttacked && isFront) {
-        const isEarlyStage = Math.random() > 0.5;
-        if (isEarlyStage) {
-          encryptedFiles = Math.round(totalFiles * randFloat(0.5, 4.0) / 100);
-          newExtensions  = pick(['.locked','.encrypted','.WNCRY','.zepto']);
-          writeOpsMin    = randInt(300, 900);
-          ragAnswer      = 'A'; actionAnswer = 'investigate';
-          notes          = `${encryptedFiles.toLocaleString()} files now have a "${newExtensions}" extension — that's not normal.`;
-        } else {
-          encryptedFiles = Math.round(totalFiles * randFloat(25, 75) / 100);
-          newExtensions  = pick(['.locked','.encrypted','.WNCRY','.cerber','.crypted']);
-          writeOpsMin    = randInt(2000, 8000);
-          ragAnswer      = 'R'; actionAnswer = 'isolate';
-          notes          = `${((encryptedFiles/totalFiles)*100).toFixed(0)}% of files encrypted. Extension: "${newExtensions}".`;
-        }
-      } else if (isAttacked) {
-        encryptedFiles = Math.round(totalFiles * randFloat(0.85, 0.99));
-        newExtensions  = pick(['.locked','.encrypted','.WNCRY','.zepto','.cerber','.crypted']);
-        writeOpsMin    = randInt(800, 8000);
-        ragAnswer      = 'R'; actionAnswer = 'isolate';
-        notes          = `${((encryptedFiles/totalFiles)*100).toFixed(0)}% of files have the "${newExtensions}" extension.`;
-      } else {
-        encryptedFiles = Math.round(totalFiles * randFloat(0.1, 1.0) / 100);
-        newExtensions  = 'None';
-        writeOpsMin    = randInt(5, 55);
-        ragAnswer      = 'G'; actionAnswer = 'ignore';
-        notes          = ``;  // no note — data shown in columns
-      }
-
-      return {
-        name: drive.name, purpose: drive.purpose,
-        totalFiles, encryptedFiles, newExtensions, writeOpsMin,
-        ragAnswer, actionAnswer, notes,
-        handled: false, userRag: null, userAction: null
-      };
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const drives=[{name:'C:\\ System Drive',purpose:'Operating system and programs'},{name:'D:\\ Documents Drive',purpose:'Staff documents and files'},{name:'E:\\ Backup Share',purpose:'Nightly backup storage'},{name:'F:\\ Media Files',purpose:'Company photos and videos'},{name:'\\\\Server01\\HR',purpose:'HR files and records'},{name:'\\\\Server02\\Finance',purpose:'Finance spreadsheets'},{name:'\\\\NAS01\\Archive',purpose:'Long-term archive storage'},{name:'G:\\ Dev Share',purpose:'Developer code and projects'}];
+    const chosen=shuffle(drives).slice(0,numItems);
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    return chosen.map((d,i)=>{
+      const total=randInt(1200,45000);
+      if(rp[i]==='R'){const pct=randFloat(28,80)/100;const enc=Math.round(total*pct);const ext=pick(['.locked','.encrypted','.WNCRY','.cerber','.crypted']);return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:enc,newExtensions:ext,writeOpsMin:randInt(2000,8000),ragAnswer:'R',actionAnswer:'isolate',notes:`${Math.round(pct*100)}% of files encrypted. Extension: "${ext}".`,handled:false,userRag:null,userAction:null};}
+      else if(rp[i]==='A'){const enc=Math.round(total*randFloat(0.5,4)/100);const ext=pick(['.locked','.encrypted','.WNCRY','.zepto']);return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:enc,newExtensions:ext,writeOpsMin:randInt(300,900),ragAnswer:'A',actionAnswer:'investigate',notes:`${enc.toLocaleString()} files now have a "${ext}" extension.`,handled:false,userRag:null,userAction:null};}
+      else if(i===edgeAt){return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:Math.round(total*randFloat(0.1,0.3)/100),newExtensions:'.bak',writeOpsMin:randInt(600,3500),ragAnswer:'G',actionAnswer:'ignore',notes:'Extension: .bak',handled:false,userRag:null,userAction:null};}
+      else{return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:Math.round(total*randFloat(0.1,1)/100),newExtensions:'None',writeOpsMin:randInt(5,55),ragAnswer:'G',actionAnswer:'ignore',notes:'',handled:false,userRag:null,userAction:null};}
     });
   },
   reportTeams: { correct: 'Incident Response & Business Continuity Team', incorrect: 'Customer Service Team' },
@@ -870,55 +728,15 @@ MODULES.phishingModule = {
     correct: 'Email Header Analyser',
     decoys: ['Network Traffic Monitor','Process Monitor','DLP Monitor','Vulnerability Scanner Dashboard','Authentication Log Viewer']
   },
-  generateScenario() {
-    const realSenders = [
-      { from:'hr@company.com',            subject:'Updated Holiday Policy',                   body:'Hi team,\n\nPlease find the updated holiday booking policy attached. Changes take effect from 1st January.\n\nHR Team', phishing:false },
-      { from:'it@company.com',            subject:'Scheduled Maintenance Tonight 11pm–2am',   body:'Hi everyone,\n\nWe will be performing scheduled server maintenance tonight between 11pm and 2am. Some services may be briefly unavailable.\n\nIT Department', phishing:false },
-      { from:'ceo@company.com',           subject:'All-Hands Meeting Next Friday',             body:'Hi all,\n\nJust a reminder that our quarterly all-hands meeting is next Friday at 10am in the main conference room.\n\nThanks', phishing:false },
-      { from:'payroll@company.com',       subject:'Your Payslip Is Ready',                    body:'Hi,\n\nYour payslip for this month is now available in the HR portal. Log in at hr.company.com to view it.\n\nPayroll', phishing:false },
-      { from:'newsletter@bbc.co.uk',      subject:'BBC News: Top Stories Today',              body:"Here are today's top stories from BBC News. Visit bbc.co.uk/news to read more.", phishing:false },
-      { from:'training@company.com',      subject:'Mandatory Cybersecurity Training Reminder', body:'Hi,\n\nThis is a reminder that your annual cybersecurity awareness training is due this month. Please log in to the training portal at learn.company.com.\n\nL&D Team', phishing:false },
-      { from:'helpdesk@company.com',      subject:'Your Support Ticket Has Been Resolved',    body:'Hi,\n\nYour IT support ticket #48821 has been resolved. If you have further questions please reply to this email.\n\nIT Helpdesk', phishing:false },
-      { from:'notifications@linkedin.com',subject:'You have 3 new connection requests',       body:'You have new connection requests waiting on LinkedIn. Log in at linkedin.com to review them.', phishing:false },
-      { from:'finance@company.com',       subject:'Q3 Budget Review — Please Review',         body:'Hi team,\n\nPlease review the attached Q3 budget summary before Thursday\'s finance meeting. Document is available in SharePoint.\n\nFinance Team', phishing:false },
-      { from:'noreply@github.com',        subject:'[GitHub] Action required: Review your SSH keys', body:'Hi,\n\nWe noticed you have SSH keys on your GitHub account that haven\'t been used in over a year. Please review them at github.com/settings/keys.\n\nGitHub Security', phishing:false },
-    ];
-
-    const phishSenders = [
-      { from:'hr@c0mpany.com',            subject:'URGENT: Update Your Bank Details NOW',     body:'Dear Employee,\n\nWe are updating payroll records. You MUST update your bank details within 24 hours or your salary will be delayed.\n\nClick here: http://payroll-update.c0mpany.com/login\n\nHR Dept', phishing:true, clue:'Misspelt domain: c0mpany.com (zero not the letter O)' },
-      { from:'it-support@company.helpdesk.xyz', subject:'Your Password Has Expired — Reset Now', body:'URGENT: Your network password expired 2 days ago. Your account will be locked in 1 hour.\n\nReset here: http://company.helpdesk.xyz/reset\n\nIT Support', phishing:true, clue:'Domain is company.helpdesk.xyz — not the real company.com domain' },
-      { from:'ceo@company-group.net',     subject:'Confidential: Wire Transfer Required Today', body:'Hi,\n\nI need you to urgently process a wire transfer of £8,500 to a new supplier. This is confidential — don\'t discuss with anyone else. Reply for bank details.\n\nCEO', phishing:true, clue:'CEO would never secretly ask staff to transfer money by email' },
-      { from:'security@paypa1.com',       subject:'Your PayPal Account Has Been Suspended',   body:'Dear Customer,\n\nUnusual activity was detected on your account. Verify your identity immediately or your account will be permanently closed:\n\nhttp://secure.paypa1.com/verify\n\n— PayPal Security', phishing:true, clue:'Domain is paypa1.com — the letter l replaced with the number 1' },
-      { from:'admin@microsooft.com',      subject:'Microsoft 365: Storage Almost Full',        body:'Your OneDrive storage is critically low. Upgrade immediately to avoid losing files:\n\nhttp://microsooft.com/storage-upgrade\n\n— Microsoft Team', phishing:true, clue:'microsooft.com — double O in Microsoft' },
-      { from:'noreply@amaz0n.co.uk',      subject:'Your Order Has Been Cancelled',             body:'Dear Customer,\n\nYour recent order has been unexpectedly cancelled due to a payment issue. Please update your payment details immediately:\n\nhttp://account.amaz0n.co.uk/billing\n\n— Amazon Customer Service', phishing:true, clue:'amaz0n.co.uk — zero instead of the letter O' },
-      { from:'accounts@comp4ny.com',      subject:'Invoice #INV-20948 — Payment Overdue',     body:'Dear Sir/Madam,\n\nYour account has an outstanding invoice of £3,240. Please make payment immediately to avoid legal action.\n\nDownload invoice: http://comp4ny.com/invoice\n\nAccounts Team', phishing:true, clue:'comp4ny.com — number 4 instead of letter A' },
-      { from:'security-alert@g00gle.com', subject:'Suspicious Sign-In Detected on Your Account', body:'We detected a sign-in from an unrecognised device in Russia. If this was not you, secure your account immediately:\n\nhttp://g00gle.com/security/review\n\nGoogle Security Team', phishing:true, clue:'g00gle.com — double zero instead of double O' },
-      { from:'hr@cornpany.com',           subject:'Christmas Party Venue Poll — Vote Now!',   body:'Hi all,\n\nPlease click the link below to vote for this year\'s Christmas party venue. Votes must be in by Friday!\n\nhttp://cornpany.com/party-vote\n\nHR', phishing:true, clue:'cornpany.com — corn instead of com (transposed letters)' },
-      { from:'support@netfl1x.com',       subject:'Your Netflix Subscription Has Expired',    body:'Dear Member,\n\nYour Netflix subscription has expired. To continue watching, please update your payment details:\n\nhttp://account.netfl1x.com/billing\n\n— Netflix Support', phishing:true, clue:'netfl1x.com — number 1 instead of the letter i' },
-      { from:'it@company.com.phishkit.ru',subject:'Password Reset Required — Action Needed',  body:'Dear User,\n\nYour company password must be reset within 24 hours as part of our security upgrade.\n\nReset here: http://company.com.phishkit.ru/reset\n\nIT Department', phishing:true, clue:'The real domain is company.com — phishkit.ru is appended after it to trick you' },
-      { from:'noreply@dropb0x.com',       subject:'Someone Shared a File With You',           body:'A colleague has shared an important document with you on Dropbox.\n\nView file: http://dropb0x.com/shared/documents\n\nDropbox', phishing:true, clue:'dropb0x.com — zero instead of the letter O' },
-    ];
-
-    // Pick 2–4 real and 1–3 phishing, total 5 — shuffled so order is always different
-    // numPhish can be 0 (all genuine), 1, 2, or 3
-    const numPhish = pick([0, 1, 1, 2, 2, 3]);
-    const numReal  = Math.max(1, 5 - numPhish);  // always show at least 1 real
-    const reals    = shuffle(realSenders).slice(0, numReal);
-    const phishs   = shuffle(phishSenders).slice(0, numPhish);
-    const all      = shuffle([...reals, ...phishs]);
-
-    return all.map(e => ({
-      name:     e.from,
-      purpose:  e.subject,
-      body:     e.body,
-      domain:   e.from.split('@')[1] || e.from,
-      clue:     e.clue || 'Legitimate company email',
-      isPhish:  e.phishing,
-      ragAnswer:   e.phishing ? 'R' : 'G',
-      actionAnswer:e.phishing ? 'report' : 'ignore',
-      notes:    e.phishing ? `⚠ PHISHING: ${e.clue}` : '✓ Legitimate email — safe to deliver',
-      handled:false, userRag:null, userAction:null,
-    }));
+    generateScenario(params={}) {
+    const {numEscalations=pick([0,1,2,2,3]),numItems=6}=params;
+    const numPhish=Math.min(numEscalations,numItems-1);
+    const numReal=numItems-numPhish;
+    const realPool=[{from:'hr@company.com',subject:'Updated Holiday Policy',body:'Hi team,\n\nThe updated holiday booking policy is attached.\n\nHR Team',phishing:false},{from:'it@company.com',subject:'Maintenance Tonight 11pm–2am',body:'Hi,\n\nServer maintenance tonight.\n\nIT Department',phishing:false},{from:'ceo@company.com',subject:'Team Meeting Next Friday',body:'Hi all,\n\nAll-hands at 10am next Friday.\n\nThanks',phishing:false},{from:'payroll@company.com',subject:'Your Payslip Is Ready',body:'Your payslip is in the HR portal.\n\nPayroll',phishing:false},{from:'helpdesk@company.com',subject:'Your Support Ticket Is Fixed',body:'Ticket #48821 resolved.\n\nIT Helpdesk',phishing:false},{from:'training@company.com',subject:'Reminder: Cybersecurity Training',body:'Your cybersecurity training is due.\n\nL&D',phishing:false},{from:'noreply@linkedin.com',subject:'You have 3 new connection requests',body:'Log in at linkedin.com to see them.',phishing:false}];
+    const phishPool=[{from:'hr@c0mpany.com',subject:'URGENT: Update Your Bank Details NOW',body:'Update bank details in 24hrs or pay stops.',phishing:true,clue:"c0mpany.com — zero (0) not the letter O!"},{from:'it-support@company.helpdesk.xyz',subject:'Your Password Has Expired!',body:'Account locks in 1 hour!',phishing:true,clue:'Real address ends .com — .helpdesk.xyz is fake!'},{from:'security@paypa1.com',subject:'Your PayPal Account Is Suspended',body:'Verify now or account closed.',phishing:true,clue:"paypa1.com — the l is the number 1!"},{from:'admin@microsooft.com',subject:'Your Storage Is Almost Full',body:'Upgrade now.',phishing:true,clue:"microsooft.com — two Os! Real is microsoft.com"},{from:'noreply@amaz0n.co.uk',subject:'Your Order Has Been Cancelled',body:'Update your card details.',phishing:true,clue:'amaz0n.co.uk — zero instead of O!'},{from:'security-alert@g00gle.com',subject:'Someone Signed Into Your Account',body:'Secure your account: g00gle.com',phishing:true,clue:"g00gle.com — two zeros instead of Os!"},{from:'it@company.com.phishkit.ru',subject:'Password Reset Required',body:'Reset: company.com.phishkit.ru/reset',phishing:true,clue:'Real .com address has .phishkit.ru tacked on!'},{from:'hr@cornpany.com',subject:'Christmas Party Vote',body:'Vote: cornpany.com/party-vote',phishing:true,clue:"cornpany.com — corn instead of com!"}];
+    const reals=shuffle(realPool).slice(0,numReal);
+    const phishs=shuffle(phishPool).slice(0,numPhish);
+    return shuffle([...reals,...phishs]).map(e=>({name:e.from,purpose:e.subject,body:e.body,domain:e.from.split('@')[1]||e.from,clue:e.clue||'Real company email',isPhish:e.phishing,ragAnswer:e.phishing?'R':'G',actionAnswer:e.phishing?'report':'ignore',notes:'',handled:false,userRag:null,userAction:null}));
   },
   emailBody(scenario) {
     return pick([
@@ -1050,77 +868,17 @@ MODULES.bruteForce = {
     correct: 'Access Attempt Analyser',
     decoys: ['Network Traffic Monitor','File Integrity Monitor','Email Header Analyser','Process Monitor','Password Checker'],
   },
-  generateScenario() {
-    const accounts = [
-      { name: 'admin',       purpose: 'Main admin account' },
-      { name: 'j.henderson', purpose: 'Staff account' },
-      { name: 'ceo',         purpose: 'CEO account — very sensitive!' },
-      { name: 'svc_backup',  purpose: 'Backup service account' },
-      { name: 'k.okafor',    purpose: 'Staff account' },
-      { name: 'root',        purpose: 'Super-admin account' },
-      { name: 'reception',   purpose: 'Reception desk account' },
-      { name: 's.mehta',     purpose: 'Staff account' },
-      { name: 'db_service',  purpose: 'Database account' },
-      { name: 'webserver',   purpose: 'Web server account' },
-    ];
-
-    const chosen = shuffle(accounts).slice(0, 5);
-    // 20% chance of all-clear, otherwise 1-3 attacks
-    const numAttacked = Math.random() < 0.2 ? 0 : randInt(1, 3);
-
-    return chosen.map((acc, i) => {
-      const isAttacked    = i < numAttacked;
-      // Edge case 1: account was locked AND then a successful login appeared
-      const isCompromised = isAttacked && Math.random() > 0.65;
-      // Edge case 2: lots of attempts but from MANY IPs — distributed / credential stuffing
-      const isDistributed = isAttacked && !isCompromised && Math.random() > 0.6;
-
-      let attemptsPerMin, sourceIPs, intervalMs, ragAnswer, actionAnswer, notes;
-
-      if (!isAttacked) {
-        attemptsPerMin = randInt(0, 7);
-        sourceIPs      = randInt(3, 45);
-        intervalMs     = 'Varied';
-        ragAnswer = 'G'; actionAnswer = 'ignore';
-        notes = `${attemptsPerMin}/min across ${sourceIPs} devices.`;
-
-      } else if (isCompromised) {
-        // Locked — then someone got in
-        attemptsPerMin = randInt(150, 800);
-        sourceIPs      = randInt(1, 2);
-        intervalMs     = `~${randInt(30,200)}ms`;
-        ragAnswer = 'R'; actionAnswer = 'lockAccount';
-        notes = `Account locked after ${attemptsPerMin.toLocaleString()} rapid attempts — then a successful login appeared ⚠`;
-
-      } else if (isDistributed) {
-        // Many IPs but still suspicious — harder edge case
-        attemptsPerMin = randInt(200, 900);
-        sourceIPs      = randInt(60, 300);
-        intervalMs     = 'Varied';
-        ragAnswer = 'A'; actionAnswer = 'investigate';
-        notes = `${attemptsPerMin.toLocaleString()}/min but from ${sourceIPs} different locations — coordinated but spread out.`;
-
-      } else {
-        // Classic brute force
-        const interval = randInt(20, 250);
-        attemptsPerMin = randInt(120, 2000);
-        sourceIPs      = randInt(1, 3);
-        intervalMs     = `~${interval}ms`;
-        if (attemptsPerMin > 400 || sourceIPs === 1) {
-          ragAnswer = 'R'; actionAnswer = 'lockAccount';
-          notes = `${attemptsPerMin.toLocaleString()}/min from ${sourceIPs === 1 ? '1 computer' : sourceIPs+' computers'}, every ~${interval}ms.`;
-        } else {
-          ragAnswer = 'A'; actionAnswer = 'investigate';
-          notes = `${attemptsPerMin.toLocaleString()}/min from ${sourceIPs} computers — attempts every ${interval}ms, looks robotic.`;
-        }
-      }
-
-      return {
-        name: acc.name, purpose: acc.purpose,
-        attemptsPerMin, sourceIPs, intervalMs,
-        ragAnswer, actionAnswer, notes,
-        handled: false, userRag: null, userAction: null,
-      };
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const accounts=[{name:'admin',purpose:'Main admin account'},{name:'j.henderson',purpose:'Staff account'},{name:'ceo',purpose:'CEO account'},{name:'svc_backup',purpose:'Backup service account'},{name:'k.okafor',purpose:'Staff account'},{name:'root',purpose:'Super-admin account'},{name:'reception',purpose:'Reception desk account'},{name:'s.mehta',purpose:'Staff account'},{name:'db_service',purpose:'Database account'}];
+    const chosen=shuffle(accounts).slice(0,numItems);
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    return chosen.map((acc,i)=>{
+      if(rp[i]==='R'){const att=randInt(300,2000);const ips=randInt(1,2);const intv=randInt(20,150);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:`~${intv}ms`,ragAnswer:'R',actionAnswer:'lockAccount',notes:`${att.toLocaleString()}/min from ${ips===1?'1 computer':ips+' computers'}, every ~${intv}ms.`,handled:false,userRag:null,userAction:null};}
+      else if(rp[i]==='A'){const att=randInt(60,299);const ips=randInt(2,6);const intv=randInt(150,450);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:`~${intv}ms`,ragAnswer:'A',actionAnswer:'investigate',notes:`${att}/min from ${ips} computers — robotic pattern.`,handled:false,userRag:null,userAction:null};}
+      else if(i===edgeAt){const att=randInt(150,500);const intv=randInt(30,120);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:1,intervalMs:`~${intv}ms`,ragAnswer:'R',actionAnswer:'lockAccount',notes:'Account locked after rapid attempts — then a successful login appeared \u26a0',handled:false,userRag:null,userAction:null};}
+      else{const att=randInt(0,7);const ips=randInt(3,40);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:'Varied',ragAnswer:'G',actionAnswer:'ignore',notes:`${att}/min across ${ips} different devices.`,handled:false,userRag:null,userAction:null};}
     });
   },
   reportTeams: {
