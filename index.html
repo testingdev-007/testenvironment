@@ -256,7 +256,6 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .iptitle{font-family:'Orbitron',monospace;font-size:20px;color:var(--red);text-shadow:0 0 18px var(--red);text-align:center;letter-spacing:3px;margin-bottom:14px;animation:pulse 1s ease infinite;}
 .ipbig{font-family:'Orbitron',monospace;font-size:44px;color:var(--red);text-shadow:0 0 28px var(--red);text-align:center;line-height:1;margin-bottom:8px;}
 .ipbig.danger{animation:pulse .4s ease infinite;color:#ff6688;}
-#ipMapCanvas{width:100%;height:240px;display:block;border:1px solid rgba(255,0,64,.28);border-radius:5px;background:#010801;}
 .iphopinfo{font-size:13px;color:#ff9999;text-align:center;margin:8px 0;min-height:18px;}
 .ipeasyopts{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
 .ipeasy{flex:1;min-width:140px;padding:12px;background:rgba(255,0,64,.07);border:2px solid var(--red);color:var(--red);font-family:'Share Tech Mono',monospace;font-size:14px;cursor:pointer;border-radius:5px;text-align:center;transition:all .18s;letter-spacing:1px;}
@@ -339,7 +338,6 @@ body.alert-mode #sbar{border-bottom-color:var(--red);box-shadow:0 0 32px rgba(25
 .edb-label{font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1px;margin-bottom:4px;}
 .edb-desc{font-size:11px;opacity:.7;line-height:1.5;}
 /* Globe canvas sizing */
-#ipMapCanvas{width:100%;height:260px;display:block;border:1px solid rgba(255,0,64,.28);border-radius:5px;background:#010a01;}
 
 
 /* ── DATA CARDS ── */
@@ -663,6 +661,10 @@ html,body{ height:var(--app-h); }
 
 /* ── GRAPH CANVAS — compact ── */
 #graphCanvas{display:none;width:100%;height:90px;max-height:90px;border-bottom:1px solid rgba(0,255,65,.12);background:rgba(0,0,0,.3);}
+
+/* ── GLOBE CONTAINER ── */
+#ipGlobeContainer{width:100%;height:360px;background:#000810;overflow:hidden;border-radius:4px;}
+#ipGlobeContainer canvas{display:block;width:100%!important;height:100%!important;}
 </style>
 </head>
 <body>
@@ -863,7 +865,7 @@ html,body{ height:var(--app-h); }
         <div class="ip-city-label" id="ipCurrentCity">Waiting for trace…</div>
         <div class="ip-ip-display" id="ipCurrentIP">—</div>
       </div>
-      <canvas id="ipMapCanvas"></canvas>
+      <div id="ipGlobeContainer" style="width:100%;height:360px;background:#000810;"></div></canvas>
       <div class="iphopinfo" id="ipHopInfo">Initialising trace…</div>
       <div class="ipeasyopts" id="ipEasyOpts"></div>
 
