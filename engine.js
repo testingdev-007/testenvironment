@@ -685,277 +685,7 @@ const CITIES=[
 // ─────────────────────────────────────────────────────────────────────
 
 // Continent polygons as [lon, lat] pairs for equirectangular projection
-const MAP_POLYS=[
-  [[-168,72],[-52,72],[-52,47],[-67,44],[-80,24],[-87,15],[-118,15],[-125,32],[-168,60]], // N America
-  [[-82,12],[-60,10],[-35,0],[-35,-10],[-50,-30],[-70,-55],[-75,-38],[-80,-4],[  -77,8]], // S America
-  [[-10,36],[5,36],[15,36],[28,36],[42,42],[35,47],[28,60],[22,70],[10,72],[-2,60],[-10,44]],// Europe
-  [[-18,16],[38,16],[52,12],[44,-12],[34,-35],[18,-35],[-18,17]],                           // Africa
-  [[26,70],[72,70],[140,72],[180,70],[180,10],[120,0],[100,2],[60,22],[45,12],[38,16],[26,40]],// Asia
-  [[114,-22],[154,-26],[150,-38],[140,-38],[115,-34],[113,-26]],                             // Australia
-  [[-75,77],[-14,82],[-14,60],[-45,58],[-80,68]],                                           // Greenland
-];
 
-// All city dots to show on map
-const MAP_STARS=[];
-
-function mapProj(lat,lon,w,h){
-  return { x:((lon+180)/360)*w, y:((90-lat)/180)*h };
-}
-
-// ── Animated tracer state ─────────────────────────────────────
-const TRACER={
-  active:false,
-  fromX:0,fromY:0,toX:0,toY:0,
-  progress:0,
-  animId:null,
-  mapAnimId:null,
-};
-
-function loadIPTrace(){
-  try{SFX.alert();}catch(e){}
-  document.body.classList.add('alert-mode');setSim('🔴 INTRUSION DETECTED');
-  GS.active=true;
-  const e1=pick(IP_TRACE_CHAT.onStart);gcMsg(e1.persona,pick(e1.msgs),400);
-  setTimeout(()=>{const e2=pick(IP_TRACE_CHAT.onStart);gcMsg(e2.persona,pick(e2.msgs));},3200);
-  document.getElementById('ipMode').style.display='';
-  document.getElementById('ipTrace').style.display='none';
-  document.getElementById('ipResult').style.display='none';
-  document.getElementById('ipOverlay').classList.add('open');
-  // Draw idle map immediately
-  drawTacticalMapIdle();
-}
-
-function drawTacticalMapIdle(){
-  const cv=document.getElementById('ipMapCanvas');if(!cv)return;
-  resizeMapCanvas(cv);
-  drawTacticalMap(cv,[],null,null);
-  requestAnimationFrame(drawTacticalMapIdle);
-}
-
-function startTrace(){
-  document.getElementById('ipMode').style.display='none';
-  document.getElementById('ipTrace').style.display='';
-  document.getElementById('ipEasyOpts').style.display='none';
-  document.getElementById('ipStat').textContent='';
-  document.getElementById('ipCurrentIP').textContent='';
-  document.getElementById('ipCurrentCity').textContent='Initialising trace…';
-
-  const hopCount=Math.max(5,GS.maxH<=1?8:GS.maxH<=2?7:GS.maxH<=3?6:5);
-  const hops=genHops(hopCount);
-  GS.ip={hops,cur:-1,timer:60,done:false,ti:null,hopInt:null,
-         waitingForAnswer:false,currentChallengeHop:null,prevX:null,prevY:null,
-         usedRetry:false};
-
-  document.getElementById('ipTimer').textContent='60';
-  document.getElementById('ipTimer').classList.remove('danger');
-
-  // Start background music
-  try{SFX.bgStart();}catch(ex){}
-
-  // 5-second countdown — timer does NOT start yet
-  document.getElementById('ipCurrentCity').textContent='Get ready — trace starting in 5!';
-  let cd=5;
-  const cdInt=setInterval(()=>{
-    cd--;
-    try{SFX.tick();}catch(ex){}
-    if(cd>0){
-      document.getElementById('ipCurrentCity').textContent='Get ready — '+cd+'!';
-      /*vox*/
-    } else {
-      clearInterval(cdInt);
-      // NOW start the 60-second countdown
-      startIPCountdown();
-      // Show first hop immediately
-      GS.ip.cur=0;
-      flashHop(hops[0],true,()=>{
-        document.getElementById('ipHopInfo').textContent='HOP 1/'+hops.length+' — '+hops[0].city+', '+hops[0].country;
-        presentHopChallenge(0);
-      });
-    }
-  },1000);
-}
-
-function startIPCountdown(){
-  const s=GS.ip;
-  // Only the 60-second pressure clock — hops advance when the child answers, not on a timer
-  s.ti=setInterval(()=>{
-    s.timer--;
-    const el=document.getElementById('ipTimer');
-    el.textContent=s.timer;
-    if(s.timer<=15){el.classList.add('danger');try{SFX.tick();}catch(ex){};}
-    if(s.timer===15){try{SFX.bgIntensify();}catch(ex){}}
-    if(s.timer<=0){clearInterval(s.ti);endTrace(false,'Time ran out!');}
-  },1000);
-  // NO hopInt — hops advance immediately when the child answers correctly
-}
-
-function advanceHop(){
-  const s=GS.ip;if(s.done||s.cur>=s.hops.length-1)return;
-  s.cur++;
-  const hop=s.hops[s.cur];
-  flashHop(hop,false,()=>{
-    document.getElementById('ipHopInfo').textContent='HOP '+(s.cur+1)+'/'+s.hops.length+' — '+hop.city+', '+hop.country;
-    const pool=IP_TRACE_CHAT.onHop;
-    if(pool){const e=pick(pool);gcMsg(e.persona,pick(e.msgs));}
-    presentHopChallenge(s.cur);
-  });
-}
-
-// flashHop: animate tracer line to new hop, then call onDone
-function flashHop(hop,first,onDone){
-  const cv=document.getElementById('ipMapCanvas');if(!cv)return onDone&&onDone();
-  resizeMapCanvas(cv);
-  const w=cv.width,h=cv.height;
-  const s=GS.ip;
-  const to=mapProj(hop.lat,hop.lon,w,h);
-
-  // Show IP in fixed panel immediately — never tied to map coordinates
-  document.getElementById('ipCurrentIP').textContent=hop.ip;
-  document.getElementById('ipCurrentCity').textContent='📍 '+hop.city+', '+hop.country;
-  try{SFX.sonar();}catch(ex){}
-
-  if(first||s.prevX===null){
-    s.prevX=to.x; s.prevY=to.y;
-    drawTacticalMap(cv,s.hops.slice(0,s.cur+1),hop,null);
-    if(onDone) onDone();
-    return;
-  }
-
-  // Animate tracer line from previous to current
-  const fromX=s.prevX,fromY=s.prevY;
-  const duration=500; // fast — 500ms
-  const startTime=performance.now();
-
-  if(TRACER.animId) cancelAnimationFrame(TRACER.animId);
-
-  function frame(now){
-    const t=Math.min(1,(now-startTime)/duration);
-    const ease=1-Math.pow(1-t,3); // ease-out cubic
-    const cx=fromX+(to.x-fromX)*ease;
-    const cy=fromY+(to.y-fromY)*ease;
-
-    drawTacticalMap(cv,s.hops.slice(0,s.cur+1),hop,{fromX,fromY,cx,cy,t});
-
-    if(t<1){
-      TRACER.animId=requestAnimationFrame(frame);
-    } else {
-      TRACER.animId=null;
-      s.prevX=to.x; s.prevY=to.y;
-      if(onDone) onDone();
-    }
-  }
-  TRACER.animId=requestAnimationFrame(frame);
-}
-
-function drawTacticalMap(cv,trail,currentHop,tracer){
-  const ctx=cv.getContext('2d');
-  const w=cv.width,h=cv.height;
-  ctx.clearRect(0,0,w,h);
-
-  // Background
-  ctx.fillStyle='#020a04';ctx.fillRect(0,0,w,h);
-
-  // Subtle scan-line effect
-  for(let y=0;y<h;y+=4){
-    ctx.fillStyle='rgba(0,0,0,0.12)';
-    ctx.fillRect(0,y,w,1);
-  }
-
-  // Grid
-  ctx.strokeStyle='rgba(0,255,65,0.06)';ctx.lineWidth=0.5;
-  for(let lat=-60;lat<=60;lat+=30){const p=mapProj(lat,0,w,h);ctx.beginPath();ctx.moveTo(0,p.y);ctx.lineTo(w,p.y);ctx.stroke();}
-  for(let lon=-150;lon<=180;lon+=30){const p=mapProj(0,lon,w,h);ctx.beginPath();ctx.moveTo(p.x,0);ctx.lineTo(p.x,h);ctx.stroke();}
-
-  // Continents — filled
-  MAP_POLYS.forEach(poly=>{
-    ctx.beginPath();
-    poly.forEach(([lon,lat],i)=>{
-      const p=mapProj(lat,lon,w,h);
-      i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);
-    });
-    ctx.closePath();
-    ctx.fillStyle='rgba(0,50,8,0.85)';ctx.fill();
-    ctx.strokeStyle='rgba(0,255,65,0.22)';ctx.lineWidth=0.8;ctx.stroke();
-  });
-
-  // All city dots (dim)
-  CITIES.forEach(city=>{
-    const p=mapProj(city.lat,city.lon,w,h);
-    ctx.beginPath();ctx.arc(p.x,p.y,2,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,255,65,0.18)';ctx.fill();
-  });
-
-  // Trail dots for visited hops
-  if(trail&&trail.length>1){
-    for(let i=0;i<trail.length-1;i++){
-      const p=mapProj(trail[i].lat,trail[i].lon,w,h);
-      ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);
-      ctx.fillStyle='rgba(255,0,64,0.5)';ctx.fill();
-    }
-    // Dashed trail lines
-    ctx.strokeStyle='rgba(255,0,64,0.3)';ctx.lineWidth=1.2;ctx.setLineDash([5,4]);
-    ctx.beginPath();
-    trail.forEach((hop,i)=>{
-      const p=mapProj(hop.lat,hop.lon,w,h);
-      i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);
-    });
-    ctx.stroke();ctx.setLineDash([]);
-  }
-
-  // Animated tracer line (in-progress)
-  if(tracer){
-    ctx.beginPath();
-    ctx.moveTo(tracer.fromX,tracer.fromY);
-    ctx.lineTo(tracer.cx,tracer.cy);
-    ctx.strokeStyle='#ff0040';ctx.lineWidth=2.5;
-    ctx.shadowColor='#ff0040';ctx.shadowBlur=10;
-    ctx.stroke();ctx.shadowBlur=0;
-    // Moving dot on tracer
-    ctx.beginPath();ctx.arc(tracer.cx,tracer.cy,5,0,Math.PI*2);
-    ctx.fillStyle='#ff6688';ctx.shadowColor='#ff0040';ctx.shadowBlur=16;ctx.fill();ctx.shadowBlur=0;
-  }
-
-  // Current hop — pulsing rings
-  if(currentHop){
-    const p=mapProj(currentHop.lat,currentHop.lon,w,h);
-    const t2=Date.now()/500;
-    [0,1,2].forEach(ring=>{
-      const r=8+ring*10+Math.sin(t2+ring*1.3)*3;
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.strokeStyle=`rgba(255,0,64,${0.40-ring*0.11})`;ctx.lineWidth=1.5;ctx.stroke();
-    });
-    ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);
-    ctx.fillStyle='#ff0040';ctx.shadowColor='#ff0040';ctx.shadowBlur=20;ctx.fill();ctx.shadowBlur=0;
-    // City name on map (small, below dot)
-    ctx.font='bold 10px Share Tech Mono';
-    ctx.fillStyle='rgba(255,180,180,0.7)';
-    ctx.fillText(currentHop.city,p.x+9,p.y+4);
-  }
-}
-
-function resizeMapCanvas(cv){
-  const w=cv.clientWidth||680,h=cv.clientHeight||220;
-  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;MAP_STARS.length=0;}
-}
-
-// Keep map pulsing during challenge (rings animate)
-let _mapPulseId=null;
-function startMapPulse(){
-  if(_mapPulseId) return;
-  function pulse(){
-    const cv=document.getElementById('ipMapCanvas');if(!cv){_mapPulseId=null;return;}
-    resizeMapCanvas(cv);
-    const s=GS.ip;
-    const trail=s&&s.hops?s.hops.slice(0,Math.max(0,(s.cur||0)+1)):[];
-    const cur=s&&s.hops&&s.cur>=0?s.hops[s.cur]:null;
-    drawTacticalMap(cv,trail,cur,null);
-    _mapPulseId=requestAnimationFrame(pulse);
-  }
-  _mapPulseId=requestAnimationFrame(pulse);
-}
-function stopMapPulse(){
-  if(_mapPulseId){cancelAnimationFrame(_mapPulseId);_mapPulseId=null;}
-}
 
 function presentHopChallenge(hopIdx){
   try{SFX.sonar();}catch(ex){}
@@ -1062,6 +792,21 @@ function triggerTraceGlitch(onResume){
 }
 
 function rndIP(){return `${randInt(2,220)}.${randInt(0,254)}.${randInt(0,254)}.${randInt(1,254)}`;}
+
+// ── IP TRACE OVERLAY ──────────────────────────────────────────
+function loadIPTrace(){
+  try{SFX.alert();}catch(e){}
+  document.body.classList.add('alert-mode');setSim('🔴 INTRUSION DETECTED');
+  GS.active=true;
+  const e1=pick(IP_TRACE_CHAT.onStart);gcMsg(e1.persona,pick(e1.msgs),400);
+  setTimeout(()=>{const e2=pick(IP_TRACE_CHAT.onStart);gcMsg(e2.persona,pick(e2.msgs));},3200);
+  document.getElementById('ipMode').style.display='';
+  document.getElementById('ipTrace').style.display='none';
+  document.getElementById('ipResult').style.display='none';
+  document.getElementById('ipOverlay').classList.add('open');
+  // Initialise the Three.js globe (defined in globe.js)
+  drawTacticalMapIdle();
+}
 
 function endTrace(won,reason){
   const s=GS.ip;if(s.done)return;s.done=true;
