@@ -5,11 +5,11 @@
    ================================================================ */
 
 var GAME_FILES = {
-  sounds:        'sounds_2026-06-10_v1.js',
-  gamification:  'gamification_2026-06-10_v1.js',
-  modules:       'modules_2026-06-10_v3.js',
-  chatData:      'chat-data_2026-06-10_v1.js',
-  engine:        'engine_2026-06-10_v5.js',
+  sounds:        'sounds.js',
+  gamification:  'gamification.js',
+  modules:       'modules.js',
+  chatData:      'chat-data.js',
+  engine:        'engine.js',
 };
 
 /* Load scripts sequentially — each waits for the previous */
