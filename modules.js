@@ -8,7 +8,14 @@ const MODULES = {};
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function randFloat(min, max, dp=1) { return parseFloat((Math.random() * (max - min) + min).toFixed(dp)); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
 function jitter(base, pct=0.15) { return Math.round(base * (1 + (Math.random()-0.5)*pct*2)); }
 
 // ── SCENARIO UTILITY ─────────────────────────────────────────
@@ -99,6 +106,10 @@ MODULES.ddos = {
       { q: 'What is a botnet?', options: ['A type of antivirus 🛡️', 'A robot that cleans computers 🤖', 'Thousands of hacked computers used to attack at once 💻'], correct: 2 },
       { q: 'Traffic is 2× normal on a day with a big product launch. What should you do?', options: ['Block it straight away 🚫', 'Investigate — it might be real traffic 🔍', 'Ignore it completely ✅'], correct: 1 },
       { q: 'What does DDoS stand for?', options: ['Distributed Denial of Service', 'Digital Data on Servers', 'Direct Download of Software'], correct: 0 },
+      { q: 'Why do attackers use thousands of computers in a DDoS?', options: ["To make the attack look more legitimate 🎭","So it's harder to block — you can't just ban one IP 🌐","To save money on internet bills 💰"], correct: 1 },
+      { q: 'What does "throttling" traffic mean?', options: ["Blocking it completely 🚫","Slowing it down so the server can cope ⚡","Speeding it up 🏎️"], correct: 1 },
+      { q: 'Why are DDoS attacks hard to stop?', options: ["Because the traffic looks real and comes from everywhere 🌍","Because they happen at night 🌙","Because computers are slow 🐢"], correct: 0 },
+      { q: 'What should you protect MOST during a DDoS?', options: ["The coffee machine ☕","Critical services like login pages and payments 💳","The office printer 🖨️"], correct: 1 },
     ]
   },
 };
@@ -155,6 +166,10 @@ MODULES.malware = {
       { q: 'What is malware?', options: ['A type of computer hardware 🖥️', 'Bad software designed to cause harm 🦠', 'A fast internet connection 📶'], correct: 1 },
       { q: 'You "quarantine" a program. What does that mean?', options: ['You delete it permanently 🗑️', 'You move it somewhere safe so it can\'t spread 🔒', 'You give it more memory 💾'], correct: 1 },
       { q: 'Malware sometimes uses low CPU on purpose. Why?', options: ['To make your computer faster ⚡', 'To hide and avoid being spotted 🕵️', 'Because it\'s not doing anything 😴'], correct: 1 },
+      { q: 'What should you do FIRST if you spot malware?', options: ['Delete the whole computer 🗑️', 'Isolate the computer from the network immediately 🔌', 'Tell your friends 📱'], correct: 1 },
+      { q: 'Malware with a name like "svchost.exe" is trying to:', options: ["Help Windows run faster ⚡","Look like a real Windows program to hide 🎭","Update your antivirus 🛡️"], correct: 1 },
+      { q: 'High network usage on an unknown process might mean:', options: ["The internet is slow today 🐌","The program is secretly sending data to a hacker 📤","The video call is buffering 📹"], correct: 1 },
+      { q: 'What is a "trojan horse" type of malware?', options: ["A virus from Greece 🏛️","Software that looks helpful but is secretly harmful 🎁","A type of firewall 🛡️"], correct: 1 },
     ]
   },
 };
@@ -297,6 +312,10 @@ MODULES.ransomware = {
       { q: 'What does encryption mean?', options: ['Making files bigger 📂', 'Scrambling data so it can\'t be read without a key 🔑', 'Copying files to another drive 💿'], correct: 1 },
       { q: 'Why is backing up your files important?', options: ['It makes your computer faster ⚡', 'If ransomware hits, you still have copies 💾', 'It stops all viruses from getting in 🛡️'], correct: 1 },
       { q: 'Should you pay a ransom to get your files back?', options: ['Yes — they always keep their word 💰', 'No — paying doesn\'t guarantee you get your files back 🚫', 'Only pay half of it 🤔'], correct: 1 },
+      { q: 'How does ransomware usually arrive on a computer?', options: ['Through the power socket 🔌', 'Via phishing emails or infected downloads 📧', 'Over the telephone 📞'], correct: 1 },
+      { q: 'What does "isolating" a drive mean?', options: ['Putting it in the freezer ❄️', 'Disconnecting it so the ransomware can\'t spread further 🔌', 'Making it run faster ⚡'], correct: 1 },
+      { q: 'Why does ransomware change file extensions like ".locked"?', options: ['To organise your files better 📁', 'To signal the files have been encrypted and are now unusable 🔒', 'To save disk space 💾'], correct: 1 },
+      { q: 'What makes a good ransomware defence?', options: ['Having a recent backup stored separately 💾', 'Paying quickly 💰', 'Restarting the computer 🔄'], correct: 0 },
     ]
   },
 };
@@ -813,6 +832,10 @@ MODULES.phishingModule = {
       { q: 'Why do phishing emails use urgent language?', options: ['Because the sender is very busy ⏰', 'To make you panic so you click without thinking 😨', 'Because that\'s how professional emails work 💼'], correct: 1 },
       { q: 'What should you NEVER share in an email?', options: ['Your name 👤', 'Your password 🔑', 'The date 📅'], correct: 1 },
       { q: 'Is "support@amazon.co.uk.fakesite.com" really Amazon?', options: ['Yes — it starts with amazon ✅', 'No — the real domain is fakesite.com 🔴', 'Only if it looks official 💼'], correct: 1 },
+      { q: 'Why do phishing emails pretend to be from banks or PayPal?', options: ['Because hackers like money 💰', 'Because people trust them and act fast without checking 🏦', 'Because it is the law 📜'], correct: 1 },
+      { q: 'An email has a perfect logo and no spelling mistakes. Can it still be phishing?', options: ['No — bad spelling is always the giveaway ✍️', 'Yes — attackers can copy logos and write well 🎨', 'Only if it came from abroad 🌍'], correct: 1 },
+      { q: 'What is "spear phishing"?', options: ['Phishing with a fishing rod 🎣', 'A targeted attack using your real name and details 🎯', 'A type of DDoS attack 🌊'], correct: 1 },
+      { q: 'What is the SAFEST thing to do with a suspicious email?', options: ['Click the link to check if it\'s real 🖱️', 'Report it without opening it 🚩', 'Forward it to friends to warn them 📤'], correct: 1 },
     ]
   },
 };
@@ -906,6 +929,10 @@ MODULES.bruteForce = {
       { q: 'What is two-factor authentication (2FA)?', options: ['Using two passwords 🔑🔑', 'A second check (like a code on your phone) so stolen passwords alone don\'t work 📱', 'Having two email accounts 📧'], correct: 1 },
       { q: 'Why are long passwords better?', options: ['They are easier to remember 🧠', 'There are more combinations to try, so it takes much longer to guess 🔐', 'They look more professional 💼'], correct: 1 },
       { q: 'A locked account then shows a successful login. What does that mean?', options: ['The real user got lucky 🍀', 'The attacker may have guessed the password — investigate immediately! 🔴', 'The lock didn\'t work properly 🔒'], correct: 1 },
+      { q: 'What is a "dictionary attack"?', options: ['Hacking using a dictionary 📖', 'Trying thousands of common words and passwords automatically 🔑', 'A very slow brute force attack 🐢'], correct: 1 },
+      { q: 'What does "account lockout" do?', options: ['Permanently deletes the account 🗑️', 'Blocks the account after too many wrong passwords 🔒', 'Sends an email to the hacker 📧'], correct: 1 },
+      { q: 'Why do attackers use many different computers for brute force?', options: ['To confuse the server 😵', 'To spread attempts so no single IP gets blocked 🌐', 'Because one computer is not fast enough 💻'], correct: 1 },
+      { q: 'Which is the hardest password to brute force?', options: ['password123 🙈', 'YourPetName2024 🐶', 'k#9mQx!2vL@p 🔐'], correct: 2 },
     ]
   },
 };
