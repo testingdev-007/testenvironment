@@ -10,6 +10,14 @@
 //    the student just picks the ACTION (no redundant RAG repeat)
 //  - Data rows are cards — all info visible, no truncation
 
+
+// ── SESSION HISTORY — persists across resets, clears on page reload ──
+const SESSION_HISTORY = {
+  modulesUsed: new Set(),      // module IDs shown this page load
+  quizShown:   {},             // { moduleId: Set of question indices shown }
+  scenarioKeys: new Set(),     // 'modId_numEsc_type' — avoid identical patterns
+};
+
 const GS = {
   maxH:3, hearts:3, xp:0,
   round:0, totalRounds:4,
@@ -36,6 +44,7 @@ const GS = {
   quizCorrect:0, quizTotal:0,
   phishReported:false, ipWon:false, livesLost:0,
   selectedEmailId:null,
+  emailOpened:false, // set true when email content shown
   // Per-session escalation control
   sessionFlags:{allGreenUsed:false, highEscalationUsed:false, lastWasLow:false},
 };
@@ -212,8 +221,11 @@ function dispatchMod(id){
   else loadModule(id);
 }
 function buildQueue(){
-  // 4 core modules, shuffled
-  const mods=shuffle([...MODULE_LIST]).slice(0,GS.totalRounds);
+  // Prefer modules not yet seen this page session — reduces repetition on reset
+  const unseen=MODULE_LIST.filter(m=>!SESSION_HISTORY.modulesUsed.has(m));
+  const pool=unseen.length>=GS.totalRounds?unseen:MODULE_LIST;
+  const mods=shuffle(pool).slice(0,GS.totalRounds);
+  mods.forEach(m=>SESSION_HISTORY.modulesUsed.add(m));
   // BOTH exceptions are guaranteed every session — always inserted at random positions
   mods.splice(randInt(0,mods.length),0,'__phish__');
   let p=randInt(0,mods.length);
@@ -254,7 +266,15 @@ function buildScenarioParams(){
   // Prevent two sequential low-escalation rounds
   const minE=f.lastWasLow?2:1;
   const numE=pick([1,2,2,2,2,3].filter(n=>n>=minE));
-  return {numEscalations:numE,escalationType:pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase:Math.random()>.3,numItems:6};
+  let escalType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']);
+  // Avoid repeating the exact same pattern for this module this session
+  const k=`${GS.modId}_${numE}_${escalType}`;
+  if(SESSION_HISTORY.scenarioKeys.has(k)){
+    const alts=['RED_AMBER','RED_RED','AMBER_AMBER'].filter(t=>!SESSION_HISTORY.scenarioKeys.has(`${GS.modId}_${numE}_${t}`));
+    if(alts.length) escalType=alts[0];
+  }
+  SESSION_HISTORY.scenarioKeys.add(`${GS.modId}_${numE}_${escalType}`);
+  return {numEscalations:numE,escalationType:escalType,includeEdgeCase:Math.random()>.3,numItems:6};
 }
 
 // ── LOAD MODULE ───────────────────────────────────────────────
@@ -263,6 +283,7 @@ function loadModule(id){
   // Guard: close any stale plenary, clear chat for fresh mission
   document.getElementById('plenaryModal').classList.remove('open');
   GS.debriefModId=null;GS.plenReportDone=false;GS.plenQuizAnswered=0;GS.plenQuizTotal=0;
+  GS.emailOpened=false;
   GS.round++;rRound();  // only real modules count
   GS.modId=id;GS.correctTool=mod.tools.correct;GS.toolOk=false;
   GS.reportReady=false;GS.badTools=0;GS.active=true;
@@ -358,6 +379,7 @@ function actOnSelectedEmail(action){
 }
 
 function showEmailContent(email){
+  GS.emailOpened=true;
   document.getElementById('welcomeMsg').style.display='none';
   const v=document.getElementById('emailView');v.style.display='block';
   v.innerHTML=`<div class="evmeta">
@@ -405,6 +427,7 @@ function doEmail(id,action,evt){
 
 // ── TOOL ──────────────────────────────────────────────────────
 function loadTool(){
+  if(!GS.emailOpened){toast('Open your email first! 👆','warn');return;}
   const v=document.getElementById('toolSel').value;
   if(!v){toast('Pick a tool first!','warn');return;}
   if(!GS.active){toast('No scenario active','warn');return;}
@@ -474,7 +497,12 @@ function renderToolData(){
     html+=`</div>`;
   });
   document.getElementById('toolData').innerHTML=html;
-  if(id==='ddos')document.getElementById('graphCanvas').style.display='block';
+  if(id==='ddos'){
+    document.getElementById('graphCanvas').style.display='block';
+    // Auto-show first item's graph immediately
+    const first=GS.scenario&&GS.scenario[0];
+    if(first&&first.graphData) setTimeout(()=>animGraph(first.graphData,first.avgHitsMin,first.currentHitsMin),300);
+  }
   updBar();
 }
 
@@ -1199,7 +1227,17 @@ function showPlenary(savedId,savedScenario){
   }
 
   // ── Phase 2: quiz (built now, hidden until phase 2 shown) ─
-  const quizPool=(pl.quiz&&pl.quiz.length)?shuffle([...pl.quiz]).slice(0,2):[];
+  const quizPool=(()=>{
+    if(!pl.quiz||!pl.quiz.length) return [];
+    if(!SESSION_HISTORY.quizShown[savedId]) SESSION_HISTORY.quizShown[savedId]=new Set();
+    const seen=SESSION_HISTORY.quizShown[savedId];
+    const allIdx=pl.quiz.map((_,i)=>i);
+    const unseen=allIdx.filter(i=>!seen.has(i));
+    const pool=unseen.length>=2?unseen:allIdx; // reset if all questions seen
+    const picked=shuffle(pool).slice(0,2);
+    picked.forEach(i=>seen.add(i));
+    return picked.map(i=>pl.quiz[i]);
+  })();
   if(quizPool.length){
     GS.plenQuizTotal=quizPool.length;
     let qHtml='';
@@ -1295,7 +1333,7 @@ function resetAll(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.getElementById('plenaryModal').classList.remove('open');
   document.body.classList.remove('alert-mode');
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
+  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
   document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
