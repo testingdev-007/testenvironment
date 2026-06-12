@@ -687,66 +687,6 @@ const CITIES=[
 // Continent polygons as [lon, lat] pairs for equirectangular projection
 
 
-function startTrace(){
-  document.getElementById('ipMode').style.display='none';
-  document.getElementById('ipTrace').style.display='';
-  document.getElementById('ipEasyOpts').style.display='none';
-  document.getElementById('ipStat').textContent='';
-  document.getElementById('ipCurrentIP').textContent='';
-  document.getElementById('ipCurrentCity').textContent='Initialising trace…';
-
-  const hopCount=Math.max(5,GS.maxH<=1?8:GS.maxH<=2?7:GS.maxH<=3?6:5);
-  const hops=genHops(hopCount);
-  GS.ip={hops,cur:-1,timer:60,done:false,ti:null,
-         waitingForAnswer:false,currentChallengeHop:null,usedRetry:false};
-
-  document.getElementById('ipTimer').textContent='60';
-  document.getElementById('ipTimer').classList.remove('danger');
-  try{SFX.bgStart();}catch(ex){}
-
-  // 5-second countdown before trace begins
-  document.getElementById('ipCurrentCity').textContent='Get ready — trace starting in 5!';
-  let cd=5;
-  const cdInt=setInterval(()=>{
-    cd--;try{SFX.tick();}catch(ex){}
-    if(cd>0){
-      document.getElementById('ipCurrentCity').textContent='Get ready — '+cd+'!';
-    } else {
-      clearInterval(cdInt);
-      startIPCountdown();
-      GS.ip.cur=0;
-      flashHop(hops[0],true,()=>{
-        document.getElementById('ipHopInfo').textContent='HOP 1/'+hops.length+' — '+hops[0].city+', '+hops[0].country;
-        presentHopChallenge(0);
-      });
-    }
-  },1000);
-}
-
-function startIPCountdown(){
-  const s=GS.ip;
-  s.ti=setInterval(()=>{
-    s.timer--;
-    const el=document.getElementById('ipTimer');
-    el.textContent=s.timer;
-    if(s.timer<=15){el.classList.add('danger');try{SFX.tick();}catch(ex){};}
-    if(s.timer===15){try{SFX.bgIntensify();}catch(ex){}}
-    if(s.timer<=0){clearInterval(s.ti);endTrace(false,'Time ran out!');}
-  },1000);
-}
-
-function advanceHop(){
-  const s=GS.ip;if(s.done||s.cur>=s.hops.length-1)return;
-  s.cur++;
-  const hop=s.hops[s.cur];
-  flashHop(hop,false,()=>{
-    document.getElementById('ipHopInfo').textContent='HOP '+(s.cur+1)+'/'+s.hops.length+' — '+hop.city+', '+hop.country;
-    const pool=IP_TRACE_CHAT.onHop;
-    if(pool){const e=pick(pool);gcMsg(e.persona,pick(e.msgs));}
-    presentHopChallenge(s.cur);
-  });
-}
-
 function presentHopChallenge(hopIdx){
   try{SFX.sonar();}catch(ex){}
   const s=GS.ip;const hop=s.hops[hopIdx];
@@ -851,9 +791,259 @@ function triggerTraceGlitch(onResume){
   },duration);
 }
 
+// ══════════════════════════════════════════════════════════════
+// NEON CANVAS MAP — IP Trace
+// ══════════════════════════════════════════════════════════════
+
+// Simplified continent polygons [lon, lat] — enough detail to be
+// recognisable, not so much they slow down canvas rendering
+
+// ── MAP POLYGON DATA ─────────────────────────────────────────
+// Loaded from worldmap.js (detailed GeoJSON-style data)
+// Falls back to minimal built-in shapes if that file is missing
+const MAP_POLYS = (typeof WORLD_POLYS !== 'undefined') ? WORLD_POLYS : [
+  // Minimal fallback — rough blobs, just enough to orient
+  [[-168,72],[-52,47],[-67,44],[-80,24],[-88,15],[-118,15],[-125,32],[-168,60]], // N.America
+  [[-82,8],[-35,-4],[-40,-22],[-68,-55],[-75,-38],[-80,-4]],                      // S.America
+  [[-9,38],[28,38],[30,46],[10,72],[-9,44]],                                       // Europe
+  [[-18,16],[51,12],[56,9],[20,-35],[-18,16]],                                     // Africa
+  [[26,70],[178,68],[178,0],[60,22],[26,50]],                                      // Asia
+  [[114,-22],[154,-28],[150,-38],[114,-28]],                                       // Australia
+];
+
+
+function mapProj(lat, lon, w, h) {
+  return { x: ((lon + 180) / 360) * w, y: ((90 - lat) / 180) * h };
+}
+
+function resizeMapCanvas(cv) {
+  const w = cv.clientWidth || 680, h = cv.clientHeight || 240;
+  if(cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+}
+
+// ── DRAW NEON MAP ─────────────────────────────────────────────
+function drawNeonMap(cv, trail, currentHop, tracer) {
+  const ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+
+  // Background
+  const bg = ctx.createLinearGradient(0,0,0,h);
+  bg.addColorStop(0,'#010d03'); bg.addColorStop(1,'#000702');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,w,h);
+
+  // Grid lines
+  ctx.strokeStyle='rgba(0,255,65,0.06)'; ctx.lineWidth=0.5;
+  for(let lat=-60;lat<=60;lat+=30){const p=mapProj(lat,0,w,h);ctx.beginPath();ctx.moveTo(0,p.y);ctx.lineTo(w,p.y);ctx.stroke();}
+  for(let lon=-150;lon<=180;lon+=30){const p=mapProj(0,lon,w,h);ctx.beginPath();ctx.moveTo(p.x,0);ctx.lineTo(p.x,h);ctx.stroke();}
+
+  // Draw polygons — handles both [lon,lat][] arrays AND GeoJSON FeatureCollection
+  function drawPoly(coords){
+    ctx.beginPath();
+    coords.forEach(([lon,lat],i)=>{
+      const p=mapProj(lat,lon,w,h);
+      i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);
+    });
+    ctx.closePath();
+    ctx.fillStyle='rgba(0,42,8,0.9)'; ctx.fill();
+    ctx.shadowColor='#00ff41'; ctx.shadowBlur=6;
+    ctx.strokeStyle='#00cc33'; ctx.lineWidth=0.9; ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+
+  if(typeof WORLD_GEOJSON!=='undefined'&&WORLD_GEOJSON.features){
+    // ── GeoJSON path (Natural Earth data) ────────────────────
+    WORLD_GEOJSON.features.forEach(f=>{
+      const g=f.geometry;
+      const rings = g.type==='Polygon'     ? g.coordinates
+                  : g.type==='MultiPolygon'? g.coordinates.flat(1)
+                  : [];
+      rings.forEach(drawPoly);
+    });
+  } else {
+    // ── Polygon array path (worldmap.js or built-in fallback) ─
+    MAP_POLYS.forEach(drawPoly);
+  }
+
+  // City reference dots
+  CITIES.forEach(city=>{
+    const p=mapProj(city.lat,city.lon,w,h);
+    ctx.beginPath(); ctx.arc(p.x,p.y,1.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,255,65,0.18)'; ctx.fill();
+  });
+
+  // CRT scan-line overlay
+  for(let y=0;y<h;y+=3){ctx.fillStyle='rgba(0,0,0,0.13)';ctx.fillRect(0,y,w,1);}
+
+  // Trail dashed line + visited dots
+  if(trail&&trail.length>1){
+    ctx.strokeStyle='rgba(255,100,0,0.5)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
+    ctx.beginPath();
+    trail.forEach((hop,i)=>{const p=mapProj(hop.lat,hop.lon,w,h);i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);});
+    ctx.stroke(); ctx.setLineDash([]);
+    for(let i=0;i<trail.length-1;i++){
+      const p=mapProj(trail[i].lat,trail[i].lon,w,h);
+      ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,80,0,0.75)';
+      ctx.shadowColor='#ff5000'; ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
+    }
+  }
+
+  // Animated tracer line
+  if(tracer){
+    ctx.shadowColor='#ff2200'; ctx.shadowBlur=18;
+    ctx.beginPath(); ctx.moveTo(tracer.fromX,tracer.fromY); ctx.lineTo(tracer.cx,tracer.cy);
+    ctx.strokeStyle='#ff4400'; ctx.lineWidth=2.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(tracer.cx,tracer.cy,6,0,Math.PI*2);
+    ctx.fillStyle='#ff8866'; ctx.fill(); ctx.shadowBlur=0;
+  }
+
+  // Active hop — pulsing rings + core + city label
+  if(currentHop){
+    const p=mapProj(currentHop.lat,currentHop.lon,w,h);
+    const t=Date.now()/550;
+    for(let ring=0;ring<3;ring++){
+      const r=10+ring*13+Math.sin(t+ring*1.3)*4;
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(255,50,0,${0.4-ring*0.12})`;
+      ctx.lineWidth=1.5; ctx.shadowColor='#ff3300'; ctx.shadowBlur=8; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(p.x,p.y,7,0,Math.PI*2);
+    ctx.fillStyle='#ff3300'; ctx.shadowColor='#ff3300'; ctx.shadowBlur=28; ctx.fill(); ctx.shadowBlur=0;
+    ctx.font='bold 10px "Share Tech Mono",monospace';
+    ctx.fillStyle='rgba(255,200,180,0.9)';
+    ctx.shadowColor='#ff3300'; ctx.shadowBlur=5;
+    ctx.fillText(currentHop.city,p.x+11,p.y+4); ctx.shadowBlur=0;
+  }
+}
+
+
+function drawTacticalMapIdle(){
+  const cv = document.getElementById('ipMapCanvas'); if(!cv) return;
+  resizeMapCanvas(cv); drawNeonMap(cv, [], null, null);
+  TRACER.animId = requestAnimationFrame(drawTacticalMapIdle);
+}
+
+// ── FLASH HOP ─────────────────────────────────────────────────
+function flashHop(hop, first, onDone){
+  const cv = document.getElementById('ipMapCanvas'); if(!cv) return onDone && onDone();
+  resizeMapCanvas(cv);
+  const w = cv.width, h = cv.height;
+  const s = GS.ip;
+  const to = mapProj(hop.lat, hop.lon, w, h);
+
+  document.getElementById('ipCurrentIP').textContent = hop.ip;
+  document.getElementById('ipCurrentCity').textContent = '📍 ' + hop.city + ', ' + hop.country;
+  try{ SFX.sonar(); }catch(e){}
+
+  if(first || s.prevX === null){
+    s.prevX = to.x; s.prevY = to.y;
+    drawNeonMap(cv, s.hops.slice(0, s.cur + 1), hop, null);
+    if(onDone) onDone(); return;
+  }
+
+  const fromX = s.prevX, fromY = s.prevY;
+  const duration = 500;
+  const startTime = performance.now();
+  if(TRACER.animId) cancelAnimationFrame(TRACER.animId);
+
+  function frame(now){
+    const t = Math.min(1, (now - startTime) / duration);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const cx = fromX + (to.x - fromX) * ease;
+    const cy = fromY + (to.y - fromY) * ease;
+    drawNeonMap(cv, s.hops.slice(0, s.cur + 1), hop, { fromX, fromY, cx, cy });
+    if(t < 1){
+      TRACER.animId = requestAnimationFrame(frame);
+    } else {
+      TRACER.animId = null; s.prevX = to.x; s.prevY = to.y;
+      if(onDone) onDone();
+    }
+  }
+  TRACER.animId = requestAnimationFrame(frame);
+}
+
+// ── MAP PULSE (during answer phase) ──────────────────────────
+let _mapPulseId = null;
+function startMapPulse(){
+  if(_mapPulseId) return;
+  function pulse(){
+    const cv = document.getElementById('ipMapCanvas'); if(!cv){ _mapPulseId = null; return; }
+    resizeMapCanvas(cv);
+    const s = GS.ip;
+    const trail = s && s.hops ? s.hops.slice(0, Math.max(0, (s.cur || 0) + 1)) : [];
+    const cur   = s && s.hops && s.cur >= 0 ? s.hops[s.cur] : null;
+    drawNeonMap(cv, trail, cur, null);
+    _mapPulseId = requestAnimationFrame(pulse);
+  }
+  _mapPulseId = requestAnimationFrame(pulse);
+}
+function stopMapPulse(){
+  if(_mapPulseId){ cancelAnimationFrame(_mapPulseId); _mapPulseId = null; }
+}
+
+// ── START TRACE ───────────────────────────────────────────────
+function startTrace(){
+  document.getElementById('ipMode').style.display='none';
+  document.getElementById('ipTrace').style.display='';
+  document.getElementById('ipEasyOpts').style.display='none';
+  document.getElementById('ipStat').textContent='';
+  document.getElementById('ipCurrentIP').textContent='';
+  document.getElementById('ipCurrentCity').textContent='Initialising trace…';
+
+  const hopCount = Math.max(5, GS.maxH<=1?8:GS.maxH<=2?7:GS.maxH<=3?6:5);
+  const hops = genHops(hopCount);
+  GS.ip = { hops, cur:-1, timer:60, done:false, ti:null,
+            waitingForAnswer:false, currentChallengeHop:null,
+            prevX:null, prevY:null, usedRetry:false };
+
+  document.getElementById('ipTimer').textContent='60';
+  document.getElementById('ipTimer').classList.remove('danger');
+  try{ SFX.bgStart(); }catch(ex){}
+
+  document.getElementById('ipCurrentCity').textContent='Get ready — trace starting in 5!';
+  let cd = 5;
+  const cdInt = setInterval(()=>{
+    cd--; try{ SFX.tick(); }catch(ex){}
+    if(cd > 0){
+      document.getElementById('ipCurrentCity').textContent='Get ready — ' + cd + '!';
+    } else {
+      clearInterval(cdInt);
+      startIPCountdown();
+      GS.ip.cur = 0;
+      flashHop(hops[0], true, ()=>{
+        document.getElementById('ipHopInfo').textContent='HOP 1/'+hops.length+' — '+hops[0].city+', '+hops[0].country;
+        presentHopChallenge(0);
+      });
+    }
+  }, 1000);
+}
+
+function startIPCountdown(){
+  const s = GS.ip;
+  s.ti = setInterval(()=>{
+    s.timer--;
+    const el = document.getElementById('ipTimer');
+    el.textContent = s.timer;
+    if(s.timer <= 15){ el.classList.add('danger'); try{ SFX.tick(); }catch(ex){} }
+    if(s.timer === 15){ try{ SFX.bgIntensify(); }catch(ex){} }
+    if(s.timer <= 0){ clearInterval(s.ti); endTrace(false,'Time ran out!'); }
+  }, 1000);
+}
+
+function advanceHop(){
+  const s = GS.ip; if(s.done || s.cur >= s.hops.length - 1) return;
+  s.cur++;
+  const hop = s.hops[s.cur];
+  flashHop(hop, false, ()=>{
+    document.getElementById('ipHopInfo').textContent='HOP '+(s.cur+1)+'/'+s.hops.length+' — '+hop.city+', '+hop.country;
+    const pool = IP_TRACE_CHAT.onHop;
+    if(pool){ const e = pick(pool); gcMsg(e.persona, pick(e.msgs)); }
+    presentHopChallenge(s.cur);
+  });
+}
+
 function rndIP(){return `${randInt(2,220)}.${randInt(0,254)}.${randInt(0,254)}.${randInt(1,254)}`;}
 
-// ── IP TRACE OVERLAY ──────────────────────────────────────────
 function loadIPTrace(){
   try{SFX.alert();}catch(e){}
   document.body.classList.add('alert-mode');setSim('🔴 INTRUSION DETECTED');
@@ -864,7 +1054,7 @@ function loadIPTrace(){
   document.getElementById('ipTrace').style.display='none';
   document.getElementById('ipResult').style.display='none';
   document.getElementById('ipOverlay').classList.add('open');
-  // Initialise the Three.js globe (defined in globe.js)
+  // Initialise the neon canvas map
   drawTacticalMapIdle();
 }
 
