@@ -93,7 +93,7 @@ function confirmReset(){
 function _boot(){
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   gcMsg('zara',  pick(GENERAL_GROUP_CHAT.welcome[0].msgs),700);
   gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
   gcMsg('priya', pick(GENERAL_GROUP_CHAT.welcome[2].msgs),8000);
@@ -382,10 +382,7 @@ function showEmailContent(email){
   GS.emailOpened=true;
   document.getElementById('welcomeMsg').style.display='none';
   const v=document.getElementById('emailView');v.style.display='block';
-  v.innerHTML=`<div class="evmeta">
-    <div class="evlbl">FROM</div><div class="evval">${esc(email.sender)}</div>
-    <div class="evlbl">SUBJECT</div><div class="evval evbig">${esc(email.subject)}</div>
-  </div><div class="evbody">${esc(email.body)}</div>`;
+  v.innerHTML=`<div class="evmeta"><span class="evlbl">FROM</span><span class="evval">${esc(email.sender)}</span><span class="evlbl evsep">SUBJECT</span><span class="evval evbig">${esc(email.subject)}</span></div><div class="evbody">${esc(email.body)}</div>`;
   showTab('E');
 }
 
@@ -793,19 +790,8 @@ function triggerTraceGlitch(onResume){
 // Simplified continent polygons [lon, lat] — enough detail to be
 // recognisable, not so much they slow down canvas rendering
 
-// ── MAP POLYGON DATA ─────────────────────────────────────────
-// Loaded from worldmap.js (detailed GeoJSON-style data)
-// Falls back to minimal built-in shapes if that file is missing
-const MAP_POLYS = (typeof WORLD_POLYS !== 'undefined') ? WORLD_POLYS : [
-  // Minimal fallback — rough blobs, just enough to orient
-  [[-168,72],[-52,47],[-67,44],[-80,24],[-88,15],[-118,15],[-125,32],[-168,60]], // N.America
-  [[-82,8],[-35,-4],[-40,-22],[-68,-55],[-75,-38],[-80,-4]],                      // S.America
-  [[-9,38],[28,38],[30,46],[10,72],[-9,44]],                                       // Europe
-  [[-18,16],[51,12],[56,9],[20,-35],[-18,16]],                                     // Africa
-  [[26,70],[178,68],[178,0],[60,22],[26,50]],                                      // Asia
-  [[114,-22],[154,-28],[150,-38],[114,-28]],                                       // Australia
-];
-
+// ── NEON MAP — self-contained, no external dependencies ──────
+const TRACER = { animId: null };
 
 function mapProj(lat, lon, w, h) {
   return { x: ((lon + 180) / 360) * w, y: ((90 - lat) / 180) * h };
@@ -813,108 +799,103 @@ function mapProj(lat, lon, w, h) {
 
 function resizeMapCanvas(cv) {
   const w = cv.clientWidth || 680, h = cv.clientHeight || 240;
-  if(cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
 }
 
-// ── DRAW NEON MAP ─────────────────────────────────────────────
-function drawNeonMap(cv, trail, currentHop, tracer) {
-  const ctx = cv.getContext('2d');
-  const w = cv.width, h = cv.height;
+function drawNeonMap(cv, trail, currentHop) {
+  try {
+    const ctx = cv.getContext('2d');
+    const w = cv.width || 680, h = cv.height || 240;
 
-  // Background
-  const bg = ctx.createLinearGradient(0,0,0,h);
-  bg.addColorStop(0,'#010d03'); bg.addColorStop(1,'#000702');
-  ctx.fillStyle = bg; ctx.fillRect(0,0,w,h);
+    // Background
+    ctx.fillStyle = '#010d03';
+    ctx.fillRect(0, 0, w, h);
 
-  // Grid lines
-  ctx.strokeStyle='rgba(0,255,65,0.06)'; ctx.lineWidth=0.5;
-  for(let lat=-60;lat<=60;lat+=30){const p=mapProj(lat,0,w,h);ctx.beginPath();ctx.moveTo(0,p.y);ctx.lineTo(w,p.y);ctx.stroke();}
-  for(let lon=-150;lon<=180;lon+=30){const p=mapProj(0,lon,w,h);ctx.beginPath();ctx.moveTo(p.x,0);ctx.lineTo(p.x,h);ctx.stroke();}
-
-  // Draw polygons — handles both [lon,lat][] arrays AND GeoJSON FeatureCollection
-  function drawPoly(coords){
-    ctx.beginPath();
-    coords.forEach(([lon,lat],i)=>{
-      const p=mapProj(lat,lon,w,h);
-      i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);
-    });
-    ctx.closePath();
-    ctx.fillStyle='rgba(0,42,8,0.9)'; ctx.fill();
-    ctx.shadowColor='#00ff41'; ctx.shadowBlur=6;
-    ctx.strokeStyle='#00cc33'; ctx.lineWidth=0.9; ctx.stroke();
-    ctx.shadowBlur=0;
-  }
-
-  if(typeof WORLD_GEOJSON!=='undefined'&&WORLD_GEOJSON.features){
-    // ── GeoJSON path (Natural Earth data) ────────────────────
-    WORLD_GEOJSON.features.forEach(f=>{
-      const g=f.geometry;
-      const rings = g.type==='Polygon'     ? g.coordinates
-                  : g.type==='MultiPolygon'? g.coordinates.flat(1)
-                  : [];
-      rings.forEach(drawPoly);
-    });
-  } else {
-    // ── Polygon array path (worldmap.js or built-in fallback) ─
-    MAP_POLYS.forEach(drawPoly);
-  }
-
-  // City reference dots
-  CITIES.forEach(city=>{
-    const p=mapProj(city.lat,city.lon,w,h);
-    ctx.beginPath(); ctx.arc(p.x,p.y,1.5,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,255,65,0.18)'; ctx.fill();
-  });
-
-  // CRT scan-line overlay
-  for(let y=0;y<h;y+=3){ctx.fillStyle='rgba(0,0,0,0.13)';ctx.fillRect(0,y,w,1);}
-
-  // Trail dashed line + visited dots
-  if(trail&&trail.length>1){
-    ctx.strokeStyle='rgba(255,100,0,0.5)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
-    ctx.beginPath();
-    trail.forEach((hop,i)=>{const p=mapProj(hop.lat,hop.lon,w,h);i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);});
-    ctx.stroke(); ctx.setLineDash([]);
-    for(let i=0;i<trail.length-1;i++){
-      const p=mapProj(trail[i].lat,trail[i].lon,w,h);
-      ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2);
-      ctx.fillStyle='rgba(255,80,0,0.75)';
-      ctx.shadowColor='#ff5000'; ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
+    // CRT scan lines
+    for (let y = 0; y < h; y += 3) {
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(0, y, w, 1);
     }
-  }
 
-  // Animated tracer line
-  if(tracer){
-    ctx.shadowColor='#ff2200'; ctx.shadowBlur=18;
-    ctx.beginPath(); ctx.moveTo(tracer.fromX,tracer.fromY); ctx.lineTo(tracer.cx,tracer.cy);
-    ctx.strokeStyle='#ff4400'; ctx.lineWidth=2.5; ctx.stroke();
-    ctx.beginPath(); ctx.arc(tracer.cx,tracer.cy,6,0,Math.PI*2);
-    ctx.fillStyle='#ff8866'; ctx.fill(); ctx.shadowBlur=0;
-  }
-
-  // Active hop — pulsing rings + core + city label
-  if(currentHop){
-    const p=mapProj(currentHop.lat,currentHop.lon,w,h);
-    const t=Date.now()/550;
-    for(let ring=0;ring<3;ring++){
-      const r=10+ring*13+Math.sin(t+ring*1.3)*4;
-      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.strokeStyle=`rgba(255,50,0,${0.4-ring*0.12})`;
-      ctx.lineWidth=1.5; ctx.shadowColor='#ff3300'; ctx.shadowBlur=8; ctx.stroke();
+    // Grid
+    ctx.strokeStyle = 'rgba(0,255,65,0.08)';
+    ctx.lineWidth = 0.5;
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const p = mapProj(lat, 0, w, h);
+      ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(w, p.y); ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(p.x,p.y,7,0,Math.PI*2);
-    ctx.fillStyle='#ff3300'; ctx.shadowColor='#ff3300'; ctx.shadowBlur=28; ctx.fill(); ctx.shadowBlur=0;
-    ctx.font='bold 10px "Share Tech Mono",monospace';
-    ctx.fillStyle='rgba(255,200,180,0.9)';
-    ctx.shadowColor='#ff3300'; ctx.shadowBlur=5;
-    ctx.fillText(currentHop.city,p.x+11,p.y+4); ctx.shadowBlur=0;
+    for (let lon = -150; lon <= 180; lon += 30) {
+      const p = mapProj(0, lon, w, h);
+      ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, h); ctx.stroke();
+    }
+
+    // City reference dots — geographic anchors
+    if (typeof CITIES !== 'undefined') {
+      CITIES.forEach(c => {
+        const p = mapProj(c.lat, c.lon, w, h);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,255,65,0.25)';
+        ctx.fill();
+      });
+    }
+
+    // Trail line between hops
+    if (trail && trail.length > 1) {
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(255,100,0,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      trail.forEach((hop, i) => {
+        const p = mapProj(hop.lat, hop.lon, w, h);
+        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Visited hop dots
+      for (let i = 0; i < trail.length - 1; i++) {
+        const p = mapProj(trail[i].lat, trail[i].lon, w, h);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff6600';
+        ctx.shadowColor = '#ff4400'; ctx.shadowBlur = 10;
+        ctx.fill(); ctx.shadowBlur = 0;
+      }
+    }
+
+    // Active hop — pulsing rings
+    if (currentHop) {
+      const p = mapProj(currentHop.lat, currentHop.lon, w, h);
+      const t = Date.now() / 500;
+      for (let ring = 0; ring < 3; ring++) {
+        const r = 10 + ring * 12 + Math.sin(t + ring * 1.2) * 4;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,50,0,${0.4 - ring * 0.12})`;
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 8;
+        ctx.stroke(); ctx.shadowBlur = 0;
+      }
+      // Core dot
+      ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff3300';
+      ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 24;
+      ctx.fill(); ctx.shadowBlur = 0;
+      // City label
+      ctx.font = 'bold 10px "Share Tech Mono",monospace';
+      ctx.fillStyle = 'rgba(255,210,190,0.9)';
+      ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 5;
+      ctx.fillText(currentHop.city, p.x + 11, p.y + 4);
+      ctx.shadowBlur = 0;
+    }
+  } catch(e) {
+    console.warn('Map draw error:', e);
   }
 }
+
 
 
 function drawTacticalMapIdle(){
   const cv = document.getElementById('ipMapCanvas'); if(!cv) return;
-  resizeMapCanvas(cv); drawNeonMap(cv, [], null, null);
+  resizeMapCanvas(cv); drawNeonMap(cv, [], null);
   TRACER.animId = requestAnimationFrame(drawTacticalMapIdle);
 }
 
@@ -936,7 +917,7 @@ function flashHop(hop, first, onDone){
 
   // Draw map with this hop shown
   const trail=s.hops?s.hops.slice(0,Math.max(0,s.cur)+1):[];
-  drawNeonMap(cv,trail,hop,null);
+  drawNeonMap(cv,trail,hop);
 
   // Store position for next hop's trail line
   const to=mapProj(hop.lat,hop.lon,cv.width||680,cv.height||240);
@@ -956,7 +937,7 @@ function startMapPulse(){
     const s = GS.ip;
     const trail = s && s.hops ? s.hops.slice(0, Math.max(0, (s.cur || 0) + 1)) : [];
     const cur   = s && s.hops && s.cur >= 0 ? s.hops[s.cur] : null;
-    drawNeonMap(cv, trail, cur, null);
+    drawNeonMap(cv, trail, cur);
     _mapPulseId = requestAnimationFrame(pulse);
   }
   _mapPulseId = requestAnimationFrame(pulse);
@@ -1032,8 +1013,8 @@ function loadIPTrace(){
   try{SFX.alert();}catch(e){}
   document.body.classList.add('alert-mode');setSim('🔴 INTRUSION DETECTED');
   GS.active=true;
-  const e1=pick(IP_TRACE_CHAT.onStart);gcMsg(e1.persona,pick(e1.msgs),400);
-  setTimeout(()=>{const e2=pick(IP_TRACE_CHAT.onStart);gcMsg(e2.persona,pick(e2.msgs));},3200);
+  try{const e1=pick(IP_TRACE_CHAT.onStart);gcMsg(e1.persona,pick(e1.msgs),400);}catch(e){}
+  try{setTimeout(()=>{const e2=pick(IP_TRACE_CHAT.onStart);gcMsg(e2.persona,pick(e2.msgs));},3200);}catch(e){}
   document.getElementById('ipMode').style.display='';
   document.getElementById('ipTrace').style.display='none';
   document.getElementById('ipResult').style.display='none';
@@ -1099,7 +1080,7 @@ function closeIPTrace(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.body.classList.remove('alert-mode');
   GS.active=false;setSim('READY');setStep(0);clearGlows();
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   schedAutoAdvance(12000);
 }
 
@@ -1294,7 +1275,7 @@ function closePlenary(){
   const savedId=GS.debriefModId;
   document.getElementById('plenaryModal').classList.remove('open');
   if(savedId){gcMod(savedId,'scenarioComplete',300);}
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   GS.debriefModId=null;
   if(GS.round>=GS.totalRounds&&!GS.queue.length){setTimeout(showEndgame,2000);}
   else{schedAutoAdvance(18000);}
@@ -1324,7 +1305,7 @@ function resetAll(){
   document.getElementById('chatMsgs').innerHTML='';
   setSim('READY');setStep(0);
   // Re-pulse the refresh button to guide child
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   gcMsg('zara', pick(GENERAL_GROUP_CHAT.welcome[0].msgs),600);
   gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
 }
