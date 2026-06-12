@@ -662,36 +662,191 @@ html,body{ height:var(--app-h); }
 /* ── GRAPH CANVAS — compact ── */
 #graphCanvas{display:none;width:100%;height:90px;max-height:90px;border-bottom:1px solid rgba(0,255,65,.12);background:rgba(0,0,0,.3);}
 
-);
-}
+</style>
+</head>
+<body>
+<canvas id="matrixCanvas"></canvas>
+<div id="app">
 
-// Called from setStep() — brings the right panel forward on mobile
-function mobileAutoTab(step){
-  if(window.innerWidth >= 480) return;
-  if(step===1) mobileTab('lc');       // new email — show inbox
-  else if(step>=2) mobileTab('mc');   // investigation — show tool
-  // Alert dot: inbox needs attention at step 1
-  mobileNavAlert('lc', step===1);
-  mobileNavAlert('mc', step>=2 && step<=4);
-}
+<!-- STATUS BAR -->
+<div id="sbar">
+  <div class="slogo">CYBERSHIELD</div>
+  <span class="ssep">|</span>
+  <div id="simStatus">READY</div>
+  <span class="ssep">|</span>
+  <div class="sitem"><span class="slbl">Lives</span><div class="hearts" id="heartsEl"></div></div>
+  <div class="sitem"><span class="slbl">XP</span><div class="xpw"><div class="xpbar"><div class="xpfill" id="xpFill"></div></div><span id="xpNum">0</span></div></div>
+  <div class="sitem"><span class="slbl">Mission</span><span id="roundNum">0/4</span></div>
+  <button class="btn btn-r btn-orb" style="font-size:10px;padding:5px 10px;" onclick="askReset()">↺ RESET</button>
+  <button class="btn btn-a btn-orb" style="font-size:10px;padding:5px 10px;" onclick="openAdmin()">⚙ ADMIN</button>
+</div>
 
-// Alert dot on nav when something needs attention
-function mobileNavAlert(col, on){
-  const btn=document.querySelector(`.bnav-btn[data-col="${col}"]`);
-  if(btn)btn.classList.toggle('alert', on);
-}
+<!-- STEP BAR -->
+<div id="app">
+<div id="stepbar">
+  <div class="step" id="st1" data-emoji="📧"><div class="snum">1</div>📧 Read Email</div>
+  <div class="sarr">›</div>
+  <div class="step" id="st2" data-emoji="🔧"><div class="snum">2</div>🔧 Pick a Tool</div>
+  <div class="sarr">›</div>
+  <div class="step" id="st3" data-emoji="🔍"><div class="snum">3</div>🔍 Look at Clues</div>
+  <div class="sarr">›</div>
+  <div class="step" id="st4" data-emoji="🚦"><div class="snum">4</div>🚦 Decide &amp; Act</div>
+  <div class="sarr">›</div>
+  <div class="step" id="st5" data-emoji="📋"><div class="snum">5</div>📋 Send Report</div>
+</div>
 
-// Initialise — show inbox by default on mobile
-(function(){
-  if(window.innerWidth < 480){
-    document.getElementById('lc').classList.add('m-show');
-  }
-})();
-</script>
+<!-- GRID -->
+<div id="grid">
 
-<script src="loader.js"></script>
-</body>
-</html>
+  <!-- LEFT: refresh + action bar + inbox + chat -->
+  <div id="lc">
+    <div id="refreshRow">
+      <button id="btnRefresh" onclick="refreshInbox()">⟳ CHECK FOR NEW EMAILS</button>
+    </div>
+    <!-- Open / Report buttons — always visible above inbox -->
+    <div class="eab">
+      <button id="btnOpenEmail" class="eab-btn eab-open" onclick="actOnSelectedEmail('open')" disabled>📂 OPEN EMAIL</button>
+      <button id="btnFlagEmail" class="eab-btn eab-flag" onclick="actOnSelectedEmail('report')" disabled>🚩 REPORT EMAIL</button>
+    </div>
+    <div class="panel" id="inboxPanel">
+      <div class="ph"><div class="pdot"></div>📬 YOUR EMAILS</div>
+      <div class="ilist" id="ilist">
+        <div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">
+          No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span>
+        </div>
+      </div>
+    </div>
+    <!-- Team chat below inbox -->
+    <div class="panel" id="chatPanel">
+      <div class="ph"><div class="pdot"></div>👥 YOUR TEAM</div>
+      <div class="cmsgs" id="chatMsgs"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: email/results (top) + investigation tool (bottom) -->
+  <div id="mc">
+    <div class="panel" id="emailPanel">
+      <div class="tbar">
+        <div class="tbtn on" id="tabE" onclick="showTab('E')">📧 EMAIL</div>
+        <div class="tbtn"    id="tabR" onclick="showTab('R')">📊 RESULTS</div>
+      </div>
+      <div class="tbody on" id="tabBodyE">
+        <div id="welcomeMsg">
+          <h2>CYBERSHIELD ACADEMY</h2>
+          <p>You're a cyber detective! 🕵️ Read emails, use your tools, and stop the hackers!</p>
+          <p style="font-size:13px;opacity:.5;margin-top:8px;">Click the green button above to begin.</p>
+        </div>
+        <div id="emailView" style="display:none;"></div>
+      </div>
+      <div class="tbody" id="tabBodyR">
+        <div id="resultsView" style="color:rgba(0,255,65,.45);font-size:15px;">Your results will show here after each mission.</div>
+      </div>
+    </div>
+    <div class="panel" id="toolPanel">
+      <div class="ph"><div class="pdot"></div>🔬 INVESTIGATION TOOL<span class="ph-r" id="scenProg"></span></div>
+      <div class="tselrow">
+        <select class="tsel" id="toolSel"><option value="">— Choose your investigation tool —</option></select>
+        <button class="btn btn-g btn-orb" onclick="loadTool()">▶ LOAD TOOL</button>
+      </div>
+      <canvas id="graphCanvas"></canvas>
+      <div class="tdata" id="toolData">
+        <div class="tph">📧 Click your email on the left, then pick the right tool and click <strong>▶ LOAD TOOL</strong>!</div>
+      </div>
+      <div class="tsbar" id="toolBar"><span class="bhint">👈 Click your email first!</span></div>
+    </div>
+  </div>
+
+</div><!-- /grid -->
+</div><!-- /app -->
+
+
+<!-- WELCOME MODAL -->
+<div id="welcomeModal">
+  <canvas id="wm-matrix" style="position:absolute;inset:0;width:100%;height:100%;opacity:.07;pointer-events:none;"></canvas>
+  <div class="wm-logo">CYBERSHIELD<br>ACADEMY</div>
+  <div class="wm-sub">CYBER DETECTIVE TRAINING</div>
+  <button class="wm-btn" onclick="launchMission()">▶ START TRAINING</button>
+  <div class="wm-hint">Click to begin!</div>
+</div>
+
+<!-- RESET CONFIRM -->
+<div id="resetConfirm">
+  <div class="rc-box">
+    <div class="rc-title">⚠ START OVER?</div>
+    <div class="rc-body">This will clear all your progress and XP.<br>Are you sure you want to start again?</div>
+    <div class="rc-btns">
+      <button class="btn btn-r btn-orb" style="flex:1;padding:10px;" onclick="confirmReset()">YES — START OVER</button>
+      <button class="btn btn-g btn-orb" style="flex:1;padding:10px;" onclick="document.getElementById('resetConfirm').classList.remove('open')">NO — KEEP GOING</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+    <div class="ragin" id="ragName"></div>
+    <div class="ragnote" id="ragNote"></div>
+    <div style="font-size:13px;color:rgba(0,255,65,.5);margin-bottom:9px;">STEP 1 — How serious is this?</div>
+    <div class="ragcs">
+      <div class="ragc rcR" onclick="ragPick('R')"><div class="rci">🔴</div><div class="rcl">RED</div><div class="rcd">Really bad!<br>Act right now</div></div>
+      <div class="ragc rcA" onclick="ragPick('A')"><div class="rci">🟡</div><div class="rcl">AMBER</div><div class="rcd">Looks dodgy —<br>needs a check</div></div>
+      <div class="ragc rcG" onclick="ragPick('G')"><div class="rci">🟢</div><div class="rcl">GREEN</div><div class="rcd">All fine —<br>nothing to do</div></div>
+    </div>
+    <div id="ragActSec" style="display:none;">
+      <div class="ragah">STEP 2 — What do you want to do about it?</div>
+      <div class="ragas" id="ragActBtns"></div>
+    </div>
+    <button class="ragcancel" onclick="closeRag()">← Cancel (go back)</button>
+  </div>
+</div>
+
+<!-- ADMIN MODAL -->
+<div id="adminModal">
+  <div class="adminbox">
+    <div class="admt">⚙ ADMIN MODE</div>
+    <div class="adminfo">Force a specific mission next, or let it randomise as normal. Takes effect on next CHECK FOR NEW EMAILS.</div>
+    <div class="admrow"><span style="font-size:12px;color:var(--amb);width:130px;">Force next module:</span>
+      <select class="admsel" id="adminModSel">
+        <option value="">Random (normal)</option>
+        <option value="ddos">DDoS Attack</option>
+        <option value="malware">Malware Infection</option>
+        <option value="ransomware">Ransomware</option>
+        <option value="phishingModule">Phishing Identifier</option>
+        <option value="__phish__">⚠ Exception: Phishing Email</option>
+        <option value="__iptrace__">⚠ Exception: IP Trace</option>
+      </select>
+    </div>
+    <div class="admrow" style="margin-top:10px;">
+      <span style="font-size:12px;color:var(--amb);width:130px;">Total missions:</span>
+      <select class="admsel" id="adminRounds" style="max-width:120px;">
+        <option value="4" selected>4</option><option value="6">6</option><option value="8">8</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px;">
+      <button class="btn btn-a btn-orb" style="flex:1;" onclick="applyAdmin()">APPLY &amp; CLOSE</button>
+      <button class="btn btn-d" style="flex:1;" onclick="closeAdmin()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- PLENARY MODAL -->
+<div id="plenaryModal">
+  <div class="plen-box">
+    <div class="plen-title" id="plenTitle">🔍 MISSION DEBRIEF</div>
+    <!-- PHASE 1: debrief + report -->
+    <div id="plenPhase1">
+      <div id="plenContent"></div>
+      <div id="plenReport"></div>
+      <button id="plenToQuiz" onclick="plenPhase2()" style="display:none;width:100%;padding:12px;margin-top:12px;font-size:14px;background:rgba(0,245,255,.08);border:2px solid var(--cyn);color:var(--cyn);font-family:'Orbitron',monospace;cursor:pointer;border-radius:5px;letter-spacing:1px;">🧠 QUIZ TIME →</button>
+    </div>
+    <!-- PHASE 2: quiz only -->
+    <div id="plenPhase2" style="display:none">
+      <div id="plenQuiz"></div>
+      <button id="plenContinue" onclick="closePlenary()" style="display:none;width:100%;padding:14px;margin-top:14px;font-size:15px;background:linear-gradient(135deg,rgba(0,245,255,.1),rgba(0,245,255,.2));border:2px solid var(--cyn);color:var(--cyn);font-family:'Orbitron',monospace;cursor:pointer;border-radius:5px;letter-spacing:2px;text-shadow:0 0 8px var(--cyn);">▶ NEXT MISSION</button>
+    </div>
+  </div>
+</div>
+
 <!-- IP OVERLAY -->
 <div id="ipOverlay">
   <div class="ipbox">
@@ -720,5 +875,102 @@ function mobileNavAlert(col, on){
   </div>
 </div>
 
+<!-- END OVERLAY (kept as fallback) -->
+<div id="endOverlay" style="display:none;"></div>
+
+<!-- END SPLASH — gamification screen -->
+<div id="endSplash">
+  <div class="es-box">
+    <div class="es-header">
+      <div class="es-run-tag" id="esRunNum">RUN #1</div>
+      <div id="esGrade"></div>
+      <div class="es-xp-row"><span class="es-xp-num" id="esXPNum">0</span><span class="es-xp-lbl">XP</span></div>
+      <div class="es-xp-break" id="esXPBreak"></div>
+      <div class="es-stars" id="esStars"></div>
+      <div id="esNewTrophies"></div>
+    </div>
+    <div class="es-tabs">
+      <div class="es-tab on" id="esTab_results"  onclick="esTab('results')">📊 RESULTS</div>
+      <div class="es-tab"    id="esTab_trophies" onclick="esTab('trophies')">🏆 CABINET</div>
+      <div class="es-tab"    id="esTab_runs"     onclick="esTab('runs')">📈 HISTORY</div>
+    </div>
+    <div class="es-content" id="esCont_results"></div>
+    <div class="es-content" id="esCont_trophies" style="display:none"></div>
+    <div class="es-content" id="esCont_runs"     style="display:none"></div>
+    <div class="es-play"><button class="btn btn-g btn-orb" onclick="resetAll()">▶ PLAY AGAIN</button></div>
+  </div>
+</div>
 
 
+<!-- All file versions managed in loader_2026-06-10_v1.js -->
+<script src="loader.js"></script>
+
+<!-- IP TRACE RETRY MODAL -->
+<div id="ipRetryModal" style="display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,.88);justify-content:center;align-items:center;">
+  <div style="background:var(--bp);border:2px solid var(--red);box-shadow:0 0 40px rgba(255,0,64,.4);border-radius:8px;padding:26px;max-width:440px;width:90%;text-align:center;">
+    <div style="font-family:'Orbitron',monospace;font-size:16px;color:var(--red);margin-bottom:12px;text-shadow:0 0 10px var(--red);">✗ WRONG IP!</div>
+    <div id="ipRetryReason" style="font-size:14px;color:rgba(0,255,65,.7);margin-bottom:18px;line-height:1.8;"></div>
+    <div style="font-size:15px;margin-bottom:18px;color:var(--g);">Do you want one more try? (45 seconds)</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-g btn-orb" style="flex:1;padding:12px;" onclick="retryIPTrace()">▶ TRY AGAIN</button>
+      <button class="btn btn-r" style="flex:1;padding:12px;font-family:'Orbitron',monospace;font-size:11px;" onclick="declineRetryIPTrace()">✕ GIVE UP</button>
+    </div>
+  </div>
+</div>
+<!-- MOBILE BOTTOM NAV -->
+<nav id="bottomNav">
+  <button class="bnav-btn on" data-col="lc" onclick="mobileTab('lc')">
+    <span class="bnav-ico">📬</span>
+    <span>INBOX</span>
+    <span class="bnav-dot"></span>
+  </button>
+  <button class="bnav-btn" data-col="mc" onclick="mobileTab('mc')">
+    <span class="bnav-ico">🔬</span>
+    <span>TOOL</span>
+    <span class="bnav-dot"></span>
+  </button>
+  <button class="bnav-btn" data-col="rc" onclick="mobileTab('rc')">
+    <span class="bnav-ico">💬</span>
+    <span>CHAT</span>
+    <span class="bnav-dot"></span>
+  </button>
+</nav>
+
+<script>
+// ── MOBILE TAB SWITCHING ──────────────────────────────────────
+function mobileTab(col){
+  if(window.innerWidth >= 480) return;
+  ['lc','mc','rc'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.classList.toggle('m-show',id===col);
+  });
+  document.querySelectorAll('.bnav-btn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.col===col);
+  });
+}
+
+// Called from setStep() — brings the right panel forward on mobile
+function mobileAutoTab(step){
+  if(window.innerWidth >= 480) return;
+  if(step===1) mobileTab('lc');       // new email — show inbox
+  else if(step>=2) mobileTab('mc');   // investigation — show tool
+  // Alert dot: inbox needs attention at step 1
+  mobileNavAlert('lc', step===1);
+  mobileNavAlert('mc', step>=2 && step<=4);
+}
+
+// Alert dot on nav when something needs attention
+function mobileNavAlert(col, on){
+  const btn=document.querySelector(`.bnav-btn[data-col="${col}"]`);
+  if(btn)btn.classList.toggle('alert', on);
+}
+
+// Initialise — show inbox by default on mobile
+(function(){
+  if(window.innerWidth < 480){
+    document.getElementById('lc').classList.add('m-show');
+  }
+})();
+</script>
+</body>
+</html>
