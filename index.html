@@ -667,6 +667,35 @@ html,body{ height:var(--app-h); }
 .evval{color:#c8ffc8;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .evbig{color:#e8ffe8;font-weight:600;}
 .evbody{padding:10px;font-size:12px;line-height:1.55;color:#b0d8b0;white-space:pre-wrap;word-break:break-word;}
+
+/* ═══════════════════════════════════════════════════════
+   OVERRIDES — these win over all earlier rules
+   ═══════════════════════════════════════════════════════ */
+
+/* Email view — From and Subject on one line */
+.evmeta{display:flex;flex-wrap:wrap;align-items:baseline;
+        gap:3px 10px;padding:8px 12px;
+        background:rgba(0,255,65,.04);
+        border-bottom:1px solid rgba(0,255,65,.12);}
+.evlbl{font-size:10px;color:rgba(0,255,65,.5);
+       letter-spacing:.07em;text-transform:uppercase;flex-shrink:0;
+       margin:0;padding:0;}
+.evsep{margin-left:8px;}
+.evval{font-size:13px;color:#c8ffc8;flex-shrink:1;
+       min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+       margin:0;}
+.evbig{color:#e8ffe8;font-weight:600;}
+.evbody{padding:10px 12px;font-size:12px;line-height:1.6;
+        color:#b0d8b0;white-space:pre-wrap;word-break:break-word;}
+
+/* Email pane smaller, tool pane larger */
+#emailPanel{flex:0 0 auto !important;min-height:120px;}
+#toolPanel{flex:1 !important;min-height:0;}
+
+/* IP trace overlay — never taller than viewport */
+.ipbox{max-height:92vh;overflow-y:auto;}
+#ipMapCanvas{height:160px !important;max-height:160px;}
+
 </style>
 </head>
 <body>
@@ -907,7 +936,7 @@ html,body{ height:var(--app-h); }
 
 
 <!-- All file versions managed in loader_2026-06-10_v10.js -->
-<script src="loader_2026-06-10_v10.js"></script>
+<script src="loader.js"></script>
 
 <!-- IP TRACE RETRY MODAL -->
 <div id="ipRetryModal" style="display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,.88);justify-content:center;align-items:center;">
