@@ -306,7 +306,7 @@ function loadModule(id){
 
 function resetTool(){
   if(GS.gfr){cancelAnimationFrame(GS.gfr);GS.gfr=null;}
-  document.getElementById('graphCanvas').style.display='none';
+  const _gc=document.getElementById('graphCanvas'); if(_gc)_gc.style.display='none';
   document.getElementById('toolData').innerHTML='<div class="tph">📧 Read your email first — then pick the right tool above and click <strong>▶ LOAD TOOL</strong>!</div>';
   document.getElementById('toolBar').innerHTML='<span class="bhint">👈 Your email tells you what kind of attack it is. That\'s the clue for picking your tool!</span>';
 }
@@ -497,12 +497,7 @@ function renderToolData(){
     html+=`</div>`;
   });
   document.getElementById('toolData').innerHTML=html;
-  if(id==='ddos'){
-    document.getElementById('graphCanvas').style.display='block';
-    // Auto-show first item's graph immediately
-    const first=GS.scenario&&GS.scenario[0];
-    if(first&&first.graphData) setTimeout(()=>animGraph(first.graphData,first.avgHitsMin,first.currentHitsMin),300);
-  }
+  // graph removed — data cards only
   updBar();
 }
 
@@ -510,7 +505,7 @@ function cardClicked(idx){
   const item=GS.scenario&&GS.scenario[idx];
   if(!item)return;
   if(GS.modId==='ddos'&&item.graphData&&item.avgHitsMin){
-    animGraph(item.graphData,item.avgHitsMin,item.currentHitsMin);
+    // graph removed
   }
 }
 
@@ -523,7 +518,7 @@ function doAction(rowIdx,actId){
   if(ao){try{SFX.correct();}catch(e){}/*vox*/addXP(15);gcMod(GS.modId,'onActionCorrect',200);}
   else{loseH('Wrong action');addXP(-5);/*vox*/gcMod(GS.modId,'onActionWrong',200);}
   // DDoS graph
-  if(GS.modId==='ddos'&&item.graphData)animGraph(item.graphData,item.avgHitsMin,item.currentHitsMin);
+  // graph removed
   renderToolData();
   const all=GS.scenario.every(s=>s.handled);
   if(all){setTimeout(()=>{
@@ -925,41 +920,30 @@ function drawTacticalMapIdle(){
 
 // ── FLASH HOP ─────────────────────────────────────────────────
 function flashHop(hop, first, onDone){
-  const cv = document.getElementById('ipMapCanvas'); if(!cv) return onDone && onDone();
+  // Always cancel any running animation first
+  if(TRACER.animId){ cancelAnimationFrame(TRACER.animId); TRACER.animId=null; }
+
+  const cv=document.getElementById('ipMapCanvas');
+  if(!cv){ if(onDone)setTimeout(onDone,50); return; }
+
   resizeMapCanvas(cv);
-  const w = cv.width, h = cv.height;
-  const s = GS.ip;
-  const to = mapProj(hop.lat, hop.lon, w, h);
+  const s=GS.ip;
 
-  document.getElementById('ipCurrentIP').textContent = hop.ip;
-  document.getElementById('ipCurrentCity').textContent = '📍 ' + hop.city + ', ' + hop.country;
-  try{ SFX.sonar(); }catch(e){}
+  // Update info text immediately
+  document.getElementById('ipCurrentIP').textContent=hop.ip;
+  document.getElementById('ipCurrentCity').textContent='📍 '+hop.city+', '+hop.country;
+  try{SFX.sonar();}catch(e){}
 
-  if(first || s.prevX === null){
-    s.prevX = to.x; s.prevY = to.y;
-    drawNeonMap(cv, s.hops.slice(0, s.cur + 1), hop, null);
-    if(onDone) onDone(); return;
-  }
+  // Draw map with this hop shown
+  const trail=s.hops?s.hops.slice(0,Math.max(0,s.cur)+1):[];
+  drawNeonMap(cv,trail,hop,null);
 
-  const fromX = s.prevX, fromY = s.prevY;
-  const duration = 500;
-  const startTime = performance.now();
-  if(TRACER.animId) cancelAnimationFrame(TRACER.animId);
+  // Store position for next hop's trail line
+  const to=mapProj(hop.lat,hop.lon,cv.width||680,cv.height||240);
+  s.prevX=to.x; s.prevY=to.y;
 
-  function frame(now){
-    const t = Math.min(1, (now - startTime) / duration);
-    const ease = 1 - Math.pow(1 - t, 3);
-    const cx = fromX + (to.x - fromX) * ease;
-    const cy = fromY + (to.y - fromY) * ease;
-    drawNeonMap(cv, s.hops.slice(0, s.cur + 1), hop, { fromX, fromY, cx, cy });
-    if(t < 1){
-      TRACER.animId = requestAnimationFrame(frame);
-    } else {
-      TRACER.animId = null; s.prevX = to.x; s.prevY = to.y;
-      if(onDone) onDone();
-    }
-  }
-  TRACER.animId = requestAnimationFrame(frame);
+  // One-frame delay so browser paints before presenting the challenge
+  setTimeout(function(){ if(onDone)onDone(); },150);
 }
 
 // ── MAP PULSE (during answer phase) ──────────────────────────
