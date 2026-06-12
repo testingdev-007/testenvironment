@@ -939,7 +939,7 @@ MODULES.bruteForce = {
 
 // ── MODULE POOL: 5 modules — engine picks 4 at random each session ──
 MODULE_LIST.length = 0;
-['ddos','malware','ransomware','phishingModule','bruteForce'].forEach(m => MODULE_LIST.push(m));
+['ddos','malware','ransomware','phishingModule','bruteForce','socialEng','usbDrop'].forEach(m => MODULE_LIST.push(m));
 
 MODULE_COLUMNS.bruteForce = [
   { key: 'name',           label: 'ACCOUNT' },
@@ -952,4 +952,210 @@ MODULE_ACTIONS.bruteForce = [
   { id: 'lockAccount', label: '🔒 LOCK ACCOUNT',   cls: 'btn-r' },
   { id: 'investigate', label: '🔍 INVESTIGATE',    cls: 'btn-a' },
   { id: 'ignore',      label: '✓ IGNORE (Normal)', cls: 'btn-d' },
+];
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 6: SOCIAL ENGINEERING
+// ─────────────────────────────────────────────────────────────
+MODULES.socialEng = {
+  id: 'socialEng',
+  name: 'SOCIAL ENGINEERING',
+  emailSender: () => pick(['security@infosec.io','alerts@staffwatch.net','hr-security@company.com']),
+  emailSubject: () => pick(['Unusual Staff Request Flagged','Help Desk Alert: Suspicious Caller','Social Engineering Attempt Reported']),
+  emailBody(scenario){
+    return pick([
+      `Hi,\n\nOur help desk has flagged some unusual requests today.\n\nSomeone appears to be trying to trick staff into handing over passwords or access by pretending to be someone they're not.\n\nPlease review the Help Desk Ticket Log below and decide which requests are genuine.\n\nSecurity Team`,
+      `Hi,\n\nWe've had reports of people calling staff and pretending to be from IT Support, Microsoft, or even senior managers.\n\nThey're trying to get passwords or access to systems. Please check the ticket log and flag anything suspicious.\n\nIT Security`,
+    ]);
+  },
+  tool: 'helpdesk',
+  toolLabel: '🎭 HELP DESK LOG',
+  briefing: {
+    title: 'Social Engineering',
+    tagline: 'Tricking people instead of hacking computers',
+    summary: 'Sometimes hackers don\'t attack computers at all — they attack people! They call, email or even visit in person pretending to be someone trustworthy (like IT support or your boss) to trick you into giving them passwords or access. It\'s called "social engineering" because they\'re engineering (tricking) people, not machines.',
+    watchFor: 'Urgent requests for passwords • Someone pretending to be IT, Microsoft or management • Requests that skip the normal process • Pressure to act quickly or secretly',
+    realWorld: 'Famous hack: In 2020, Twitter was hacked when attackers called Twitter staff pretending to be IT, tricked them into giving access, and took over celebrity accounts including Elon Musk\'s.',
+  },
+  generateScenario(params={}){
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const tickets=[
+      {caller:'Unknown — said they were from Microsoft',dept:'External',req:'Asked for the admin password so they could "fix a virus remotely"',process:'No ticket number. Called out of the blue.',rag:'R',action:'block',note:'Microsoft never calls to ask for your password.'},
+      {caller:'Someone claiming to be the CEO',dept:'Unknown',req:'Asked receptionist to email them the staff payroll spreadsheet immediately',process:'Sent via personal Gmail, not company email. Said not to tell anyone.',rag:'R',action:'block',note:'Legitimate managers use company email and follow normal processes.'},
+      {caller:'Said they were from IT Support',dept:'IT (unverified)',req:'Needed the Wi-Fi password for a "new employee" who hadn\'t been set up yet',process:'No help desk ticket. Sounded very urgent.',rag:'R',action:'block',note:'New employees are set up through HR. IT never asks for Wi-Fi passwords this way.'},
+      {caller:'Someone claiming to be a new supplier',dept:'External',req:'Asked the finance team to update their bank details in the system',process:'Email came from a free Gmail account, not the supplier\'s usual address.',rag:'R',action:'block',note:'Bank detail changes must always be verified by phone using a known number.'},
+      {caller:'Person at reception, no ID',dept:'Unknown',req:'Said they\'d left their access card at home and needed to be let in',process:'Not on the visitor list. No manager came to meet them.',rag:'A',action:'investigate',note:'Could be genuine but must be verified — never let in unverified visitors.'},
+      {caller:'Caller claiming to be from the bank',dept:'External',req:'Said the company account had been frozen and needed login details to unfreeze it',process:'Wouldn\'t give a case reference number.',rag:'R',action:'block',note:'Banks never ask for your login details by phone.'},
+      {caller:'Email from "HR"',dept:'Internal (unverified)',req:'Asking all staff to confirm their passwords for a "security audit"',process:'Email was from hr@company-helpdesk.com, not hr@company.com',rag:'R',action:'block',note:'Spot the fake domain — helpdesk.com not company.com.'},
+      {caller:'Sarah from IT Support (known staff member)',dept:'IT',req:'Logged a ticket to reset a user\'s password following the standard process',process:'Proper ticket number. Verified via internal system.',rag:'G',action:'ignore',note:'Standard IT process followed correctly.'},
+      {caller:'New employee James via line manager',dept:'HR',req:'Access badge being processed — manager requested temporary visitor badge',process:'HR ticket raised. Manager confirmed by phone.',rag:'G',action:'ignore',note:'Correct process followed through proper channels.'},
+      {caller:'IT department',dept:'IT',req:'Scheduled password reset reminder sent to all staff (it\'s policy every 90 days)',process:'Sent from it@company.com with a proper ticket reference.',rag:'G',action:'ignore',note:'Legitimate scheduled process.'},
+    ];
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const reds=tickets.filter(t=>t.rag==='R');
+    const ambs=tickets.filter(t=>t.rag==='A');
+    const greens=tickets.filter(t=>t.rag==='G');
+    const edgeItem=includeEdgeCase&&ambs.length?[pick(ambs)]:[];
+    const redItems=shuffle(reds).slice(0,rp.filter(r=>r==='R').length);
+    const ambItems=rp.filter(r=>r==='A').length>edgeItem.length?shuffle(ambs.filter(a=>!edgeItem.includes(a))).slice(0,rp.filter(r=>r==='A').length-edgeItem.length):[];
+    const escalated=[...redItems,...ambItems,...edgeItem];
+    const needed=numItems-escalated.length;
+    const greenItems=shuffle(greens).slice(0,needed);
+    return shuffle([...escalated,...greenItems]).map(t=>({
+      name:t.caller,purpose:t.dept,
+      request:t.req,process:t.process,
+      ragAnswer:t.rag,actionAnswer:t.action,
+      notes:t.note,
+      handled:false,userRag:null,userAction:null,
+    }));
+  },
+  columns:[
+    {key:'name',      label:'CALLER / SENDER'},
+    {key:'purpose',   label:'DEPT'},
+    {key:'request',   label:'WHAT THEY WANTED'},
+    {key:'process',   label:'HOW THEY ASKED'},
+  ],
+  actions:{R:'block',A:'investigate',G:'ignore'},
+  actionLabels:{block:'🚫 BLOCK & REPORT',investigate:'🔍 VERIFY FIRST',ignore:'✅ LEGITIMATE'},
+  ragRules:{
+    R:'Asking for passwords / access / money — especially urgently or secretly → RED',
+    A:'Unusual but not obviously fake — needs verification before acting → AMBER',
+    G:'Follows proper process with verified identity → GREEN',
+  },
+  completionText(){
+    return `<div class="rc info"><h3>SOCIAL ENGINEERING — KEY FACTS</h3>
+    <p>Social engineers attack PEOPLE not computers. They use urgency, authority and trust to make you act without thinking.</p>
+    <p style="margin-top:8px;"><strong>Remember the golden rules:</strong> Never give passwords to anyone who asks. Always verify identity through a different channel. Legitimate IT never needs your password.</p></div>`;
+  },
+  reportTeams:{correct:'Security Awareness Team',incorrect:'Facilities Management'},
+  plenary:{
+    analogy:'Social engineering is like a con artist in a film — they use a disguise and a convincing story to steal something, without ever needing to break down the door.',
+    whatHappened:'Someone pretended to be trusted (IT, Microsoft, your boss) and tried to trick staff into giving away passwords or access.',
+    keyRule:'Legitimate organisations NEVER ask for your password. If anyone does — it\'s a scam.',
+    realWorld:'The 2020 Twitter hack used social engineering. Attackers called Twitter staff pretending to be IT, got access, and hijacked accounts with 100 million followers.',
+    reportQ:'Who should you call first if you think someone is trying to social engineer you?',
+    reportA:'Your IT Security or help desk team — straight away, before doing anything else.',
+    quiz:[
+      {q:'Microsoft calls you to say your computer has a virus and they need your password. What should you do?',options:['Give them the password so they can fix it 😬','Hang up — Microsoft never calls asking for passwords 📵','Check if your computer is slow first 🐢'],correct:1},
+      {q:'Someone at the door says they\'re from IT and forgot their pass. What should you do?',options:['Let them in — they look friendly 😊','Call IT to verify before letting anyone in 📞','Ask them to wait and then ignore them 🤷'],correct:1},
+      {q:'Your "boss" emails from a Gmail account asking for the payroll file urgently. What do you do?',options:['Send it — your boss needs it! 📧','Call your boss on their known number to check — bosses use company email 📞','Forward it just in case 🤷'],correct:1},
+      {q:'Why do social engineers create urgency ("do it NOW!")?',options:['Because they\'re very busy people 🏃','So you act without thinking or checking 🧠','Because computers work faster when things are urgent ⚡'],correct:1},
+      {q:'A caller says they\'re from your bank and need your login details to fix a problem. What do you do?',options:['Give them the details — it\'s the bank! 🏦','Hang up and call the bank back on the number on their website 📞','Wait to see if your account gets frozen 😬'],correct:1},
+      {q:'What does "social engineering" mean?',options:['Building bridges and roads 🏗️','Tricking people instead of hacking computers 🎭','A type of computer virus 💻'],correct:1},
+      {q:'Someone asks for your password to "test the system." What do you do?',options:['Give it — it\'s just a test ✅','Refuse — no legitimate test needs your actual password 🚫','Change your password then give them the old one 🔑'],correct:1},
+      {q:'The safest thing to do when you\'re not sure if a request is genuine is:',options:['Just do what they ask to be helpful 😊','Verify through a different, trusted channel first 📞','Ask your friend what they think 👥'],correct:1},
+      {q:'What makes social engineering attacks hard to spot?',options:['They happen very fast ⚡','They use real-looking details and sound convincing 🎭','They only happen at night 🌙'],correct:1},
+    ],
+  },
+};
+
+MODULE_LIST.push('socialEng');
+MODULE_COLUMNS.socialEng = [
+  {key:'name',    label:'CALLER / SENDER'},
+  {key:'purpose', label:'DEPARTMENT'},
+  {key:'request', label:'WHAT THEY WANTED'},
+  {key:'process', label:'HOW THEY ASKED'},
+];
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 7: USB DROP ATTACK
+// ─────────────────────────────────────────────────────────────
+MODULES.usbDrop = {
+  id: 'usbDrop',
+  name: 'USB DROP ATTACK',
+  emailSender: () => pick(['alerts@usb-monitor.net','security@devicewatch.io','it-security@company.com']),
+  emailSubject: () => pick(['Unknown USB Devices Detected','USB Security Alert','Suspicious Device Connections Logged']),
+  emailBody(scenario){
+    return pick([
+      `Hi,\n\nOur security system has detected USB devices being plugged into company computers.\n\nHackers sometimes leave infected USB sticks in car parks or corridors hoping curious staff will plug them in.\n\nPlease review the USB Device Log and flag anything suspicious.\n\nIT Security`,
+      `Hi,\n\nSeveral unknown USB devices have been plugged into computers today. This could be a USB drop attack — where hackers leave infected memory sticks around hoping someone picks them up.\n\nCheck the log below carefully.\n\nSecurity Operations`,
+    ]);
+  },
+  tool: 'usb',
+  toolLabel: '🔌 USB DEVICE LOG',
+  briefing:{
+    title:'USB Drop Attack',
+    tagline:'The danger of unknown USB drives',
+    summary:'A USB drop attack is when a hacker leaves infected USB drives (memory sticks) somewhere people will find them — like in a car park, reception, or on a desk. When a curious person plugs it in, the malware automatically runs and infects the computer. Studies show that nearly half of people who find a USB stick will plug it in!',
+    watchFor:'Unknown device names • Devices that auto-run programs • USB sticks left in unusual places • New devices connected outside of working hours',
+    realWorld:'In 2010, the Stuxnet worm — one of the most sophisticated cyberweapons ever — spread via USB drops to sabotage nuclear facilities in Iran. Someone found a USB stick in a car park and plugged it in.',
+  },
+  generateScenario(params={}){
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const devices=[
+      {name:'USB_FOUND_CARPARK',type:'Unknown USB Stick',location:'Car park — found on the ground',time:'08:14',auto:'autorun.inf executed immediately',files:'setup.exe, update.bat',rag:'R',action:'quarantine',note:'Found outside + autorun = almost certainly malicious. Isolate the computer immediately.'},
+      {name:'MYSTERY_STICK_001',type:'Unknown USB Stick',location:'Reception desk — no owner',time:'12:32',auto:'Tried to run hidden_update.exe',files:'hidden_update.exe, invoice.pdf (fake)',rag:'R',action:'quarantine',note:'Unknown device trying to run hidden executables. Classic USB drop attack.'},
+      {name:'FREE_GIFT_USB',type:'USB Stick (branded "Free Gift")',location:'Conference room — left after meeting',time:'14:55',auto:'No autorun',files:'gift_voucher.exe (suspicious)',rag:'R',action:'quarantine',note:'Branded "free gift" USBs left at events are a classic delivery method for malware.'},
+      {name:'UNKNOWN_DEVICE_02',type:'USB Stick',location:'Plugged into finance PC',time:'23:47',auto:'No autorun detected',files:'viewed 3 files then removed',rag:'A',action:'investigate',note:'After-hours + finance PC + unknown device = very suspicious even without autorun.'},
+      {name:'VISITOR_USB_??',type:'Unknown device',location:'Meeting room PC',time:'09:22',auto:'No autorun',files:'accessed network drive briefly',rag:'A',action:'investigate',note:'Visitor USB accessing network drives needs investigation — this shouldn\'t happen.'},
+      {name:'JIM_PERSONAL_USB',type:'Personal USB (staff member)',location:'Jim\'s workstation',time:'11:05',auto:'No autorun',files:'personal_photos.jpg, cv.docx',rag:'A',action:'investigate',note:'Personal USBs are against policy — could accidentally introduce malware even if not intentional.'},
+      {name:'CORP_BACKUP_DRIVE',type:'Company Backup Drive (labelled)',location:'IT server room',time:'02:00',auto:'No autorun',files:'backup files only',rag:'G',action:'ignore',note:'Scheduled backup in IT room using labelled company equipment — expected.'},
+      {name:'IT_INSTALL_DRIVE',type:'IT Department USB (labelled, asset tagged)',location:'IT Support desk',time:'10:30',auto:'No autorun',files:'software_install.msi (verified hash)',rag:'G',action:'ignore',note:'Labelled IT asset with verified software. Normal IT operation.'},
+      {name:'ENCRYPTED_CORP_USB',type:'Company encrypted USB (IronKey)',location:'Finance Director\'s PC',time:'09:15',auto:'No autorun',files:'quarterly_report.xlsx',rag:'G',action:'ignore',note:'Company-issued encrypted USB used by authorised staff during working hours.'},
+    ];
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const reds=devices.filter(d=>d.rag==='R');
+    const ambs=devices.filter(d=>d.rag==='A');
+    const greens=devices.filter(d=>d.rag==='G');
+    const edgeItem=includeEdgeCase&&ambs.length?[pick(ambs)]:[];
+    const redItems=shuffle(reds).slice(0,rp.filter(r=>r==='R').length);
+    const ambItems=rp.filter(r=>r==='A').length>edgeItem.length?shuffle(ambs.filter(a=>!edgeItem.includes(a))).slice(0,rp.filter(r=>r==='A').length-edgeItem.length):[];
+    const escalated=[...redItems,...ambItems,...edgeItem];
+    const needed=numItems-escalated.length;
+    const greenItems=shuffle(greens).slice(0,needed);
+    return shuffle([...escalated,...greenItems]).map(d=>({
+      name:d.name,purpose:d.type,
+      location:d.location,time:d.time,
+      autorun:d.auto,files:d.files,
+      ragAnswer:d.rag,actionAnswer:d.action,
+      notes:d.note,
+      handled:false,userRag:null,userAction:null,
+    }));
+  },
+  columns:[
+    {key:'name',     label:'DEVICE ID'},
+    {key:'purpose',  label:'TYPE'},
+    {key:'location', label:'WHERE FOUND'},
+    {key:'autorun',  label:'AUTO-RUN?'},
+  ],
+  actions:{R:'quarantine',A:'investigate',G:'ignore'},
+  actionLabels:{quarantine:'🔌 QUARANTINE PC',investigate:'🔍 INVESTIGATE',ignore:'✅ AUTHORISED'},
+  ragRules:{
+    R:'Unknown device + autorun programs OR found in unusual location → RED',
+    A:'Unknown or personal device without autorun — needs checking → AMBER',
+    G:'Company-issued, labelled, authorised device → GREEN',
+  },
+  completionText(){
+    return `<div class="rc info"><h3>USB DROP ATTACK — KEY FACTS</h3>
+    <p>If you find a USB stick, do NOT plug it in — ever. Tell IT security instead. Curiosity is exactly what attackers are counting on.</p>
+    <p style="margin-top:8px;"><strong>Remember:</strong> Autorun = instant infection. After-hours + unknown device = big red flag. Only use company-issued, labelled USB devices.</p></div>`;
+  },
+  reportTeams:{correct:'IT Security & Incident Response',incorrect:'Facilities Management'},
+  plenary:{
+    analogy:'A USB drop attack is like finding a sweet on the floor — it might look fine, but you have no idea what\'s in it or where it\'s been. Most sensible people wouldn\'t eat it. Don\'t plug in unknown USB sticks either!',
+    whatHappened:'Someone left infected USB sticks around the building hoping a staff member would plug one in. The USB automatically ran malicious software the moment it was connected.',
+    keyRule:'Never plug in a USB stick you didn\'t buy yourself or get from IT. If you find one, hand it to IT Security.',
+    realWorld:'Stuxnet, discovered in 2010, used USB drop attacks to destroy nuclear centrifuges in Iran. It was the most sophisticated cyberweapon ever seen at the time.',
+    reportQ:'You find a USB stick in the car park with "STAFF SALARIES 2024" written on it. What do you do?',
+    reportA:'Hand it to IT Security immediately without plugging it in. The label is designed to make you curious!',
+    quiz:[
+      {q:'You find a USB stick in the car park. What do you do?',options:['Plug it in to see what\'s on it 🔌','Hand it straight to IT Security without plugging it in 🛡️','Keep it — finders keepers! 🎁'],correct:1},
+      {q:'What makes a USB drop attack so effective?',options:['USB sticks are very fast ⚡','People are naturally curious and want to see what\'s on the drive 🤔','USB sticks are free 🆓'],correct:1},
+      {q:'What does "autorun" mean on a USB stick?',options:['The USB charges your battery automatically 🔋','Programs run automatically the moment the USB is plugged in 💻','The USB runs faster than normal 🏃'],correct:1},
+      {q:'A USB stick with a label saying "WAGES - CONFIDENTIAL" is left on your desk. What should you do?',options:['Open it — it might be important! 📂','Report it to IT Security immediately without plugging it in 🚨','Leave it where it is and ignore it 🤷'],correct:1},
+      {q:'Which USB stick is safe to plug in?',options:['A USB you found in the car park 🅿️','A USB given to you as a "free gift" at a conference 🎁','A company-issued, encrypted USB from your IT department 💼'],correct:2},
+      {q:'Why might a hacker label a USB stick "STAFF SALARIES"?',options:['To be helpful and organised 📁','To make you curious so you plug it in 🤔','Because it actually contains salary information 💰'],correct:1},
+      {q:'Stuxnet — one of the most powerful cyberweapons ever — used USB drop attacks. What did it destroy?',options:['The internet 🌐','Nuclear facility centrifuges in Iran ⚛️','Office printers 🖨️'],correct:1},
+      {q:'An unknown USB drive is plugged into a finance computer at 2am. This is:',options:['Normal — maybe someone was working late 🌙','Very suspicious — investigate immediately 🔴','Fine as long as the files look normal 📄'],correct:1},
+      {q:'Personal USB sticks (your own from home) in the office are:',options:['Fine — they\'re yours so you know they\'re safe ✅','Against policy and risky — they might carry malware from home 🚫','Only a problem if they have autorun 🔌'],correct:1},
+    ],
+  },
+};
+
+MODULE_LIST.push('usbDrop');
+MODULE_COLUMNS.usbDrop = [
+  {key:'name',     label:'DEVICE ID'},
+  {key:'purpose',  label:'DEVICE TYPE'},
+  {key:'location', label:'WHERE FOUND / CONNECTED'},
+  {key:'autorun',  label:'AUTO-RUN DETECTED?'},
 ];
