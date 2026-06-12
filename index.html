@@ -694,7 +694,39 @@ html,body{ height:var(--app-h); }
 
 /* IP trace overlay — never taller than viewport */
 .ipbox{max-height:92vh;overflow-y:auto;}
-#ipMapCanvas{height:160px !important;max-height:160px;}
+#ipMapCanvas{background:transparent !important;}
+
+
+/* ── XP POPUP ANIMATION ─────────────────────────── */
+.xp-pop{position:fixed;left:50%;top:50%;transform:translate(-50%,0);
+        z-index:500;pointer-events:none;text-align:center;opacity:0;}
+.xp-pop-amt{font-family:'Orbitron',monospace;font-size:42px;font-weight:900;
+            color:#00ff41;text-shadow:0 0 30px #00ff41,0 0 60px #00ff41;
+            animation:xpPulse .4s ease;}
+.xp-pop-lbl{font-family:'Share Tech Mono',monospace;font-size:13px;
+            color:rgba(0,255,65,.7);letter-spacing:.15em;margin-top:4px;}
+@keyframes xpPulse{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+/* ── ATTACK BRIEFING MODAL ──────────────────────── */
+.brief-box{background:#050f05;border:2px solid var(--grn);
+           box-shadow:0 0 60px rgba(0,255,65,.4);
+           border-radius:8px;padding:28px;width:min(640px,94vw);
+           max-height:88vh;overflow-y:auto;}
+.brief-flash{font-family:'Orbitron',monospace;font-size:13px;
+             color:var(--grn);letter-spacing:.2em;text-align:center;
+             animation:pulse .8s ease infinite;margin-bottom:14px;}
+.brief-title{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;
+             color:#00ff41;text-shadow:0 0 20px #00ff41;text-align:center;
+             margin-bottom:4px;}
+.brief-tagline{font-size:13px;color:rgba(0,255,65,.6);text-align:center;
+               font-style:italic;margin-bottom:18px;}
+.brief-section{margin-bottom:14px;}
+.brief-label{font-size:10px;color:rgba(0,255,65,.5);letter-spacing:.1em;
+             text-transform:uppercase;margin-bottom:5px;}
+.brief-text{font-size:13px;color:#b8e8b8;line-height:1.65;}
+.brief-watch{color:#ffe082;font-size:12px;}
+.brief-real{color:#b0d0ff;font-size:12px;font-style:italic;}
+.brief-btn{width:100%;padding:14px;margin-top:18px;font-size:14px;}
 
 </style>
 </head>
@@ -895,7 +927,27 @@ html,body{ height:var(--app-h); }
         <div class="ip-city-label" id="ipCurrentCity">Waiting for trace…</div>
         <div class="ip-ip-display" id="ipCurrentIP">—</div>
       </div>
-      <canvas id="ipMapCanvas" style="width:100%;height:240px;display:block;border-radius:4px;background:#010d03;"></canvas></canvas>
+      <div style="position:relative;width:100%;height:160px;border-radius:4px;overflow:hidden;">
+      <svg id="ipMapSVG" viewBox="0 0 720 360" preserveAspectRatio="xMidYMid meet"
+  xmlns="http://www.w3.org/2000/svg"
+  style="position:absolute;inset:0;width:100%;height:100%;display:block;">
+  <defs>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="720" height="360" fill="#010d03"/>
+  <g stroke="rgba(0,255,65,0.07)" stroke-width="0.5" fill="none">
+    <line x1="0" y1="300.0" x2="720" y2="300.0" /><line x1="0" y1="240.0" x2="720" y2="240.0" /><line x1="0" y1="180.0" x2="720" y2="180.0" /><line x1="0" y1="120.0" x2="720" y2="120.0" /><line x1="0" y1="60.0" x2="720" y2="60.0" /><line x1="60.0" y1="0" x2="60.0" y2="360" /><line x1="120.0" y1="0" x2="120.0" y2="360" /><line x1="180.0" y1="0" x2="180.0" y2="360" /><line x1="240.0" y1="0" x2="240.0" y2="360" /><line x1="300.0" y1="0" x2="300.0" y2="360" /><line x1="360.0" y1="0" x2="360.0" y2="360" /><line x1="420.0" y1="0" x2="420.0" y2="360" /><line x1="480.0" y1="0" x2="480.0" y2="360" /><line x1="540.0" y1="0" x2="540.0" y2="360" /><line x1="600.0" y1="0" x2="600.0" y2="360" /><line x1="660.0" y1="0" x2="660.0" y2="360" /><line x1="720.0" y1="0" x2="720.0" y2="360" />
+  </g>
+  <g class="lands" fill="#002a08" stroke="#00cc33" stroke-width="0.8"
+     filter="url(#glow)" opacity="0.9">
+    <path d="M46.0,38.0L24.0,54.0L30.0,60.0L44.0,68.0L54.0,66.0L96.0,68.0L104.0,80.0L112.0,84.0L112.0,88.0L112.0,100.0L116.0,106.0L122.0,112.0L128.0,120.0L134.0,126.0L140.0,132.0L150.0,140.0L160.0,146.0L176.0,148.0L192.0,160.0L202.0,162.0L204.0,162.0L196.0,158.0L188.0,152.0L180.0,150.0L184.0,144.0L186.0,138.0L180.0,130.0L182.0,122.0L184.0,120.0L190.0,120.0L196.0,126.0L200.0,130.0L198.0,132.0L200.0,130.0L200.0,122.0L202.0,114.0L210.0,110.0L208.0,106.0L216.0,98.0L220.0,96.0L228.0,92.0L254.0,86.0L254.0,86.0L250.0,80.0L246.0,70.0L236.0,64.0L232.0,60.0L224.0,54.0L220.0,50.0L204.0,44.0L200.0,36.0L170.0,34.0L120.0,38.0L80.0,38.0L46.0,38.0Z"/><path d="M216.0,28.0L280.0,16.0L300.0,12.0L324.0,14.0L324.0,20.0L316.0,26.0L312.0,36.0L296.0,44.0L280.0,52.0L272.0,56.0L260.0,56.0L256.0,52.0L252.0,44.0L244.0,36.0L228.0,32.0Z"/><path d="M216.0,156.0L236.0,156.0L236.0,160.0L240.0,164.0L256.0,170.0L260.0,176.0L260.0,180.0L280.0,186.0L290.0,190.0L290.0,196.0L286.0,200.0L282.0,208.0L282.0,216.0L274.0,226.0L268.0,228.0L262.0,236.0L256.0,244.0L254.0,248.0L246.0,256.0L234.0,264.0L228.0,272.0L224.0,280.0L224.0,288.0L228.0,290.0L232.0,288.0L220.0,284.0L210.0,280.0L210.0,268.0L214.0,256.0L218.0,240.0L220.0,224.0L220.0,216.0L208.0,208.0L204.0,196.0L200.0,188.0L200.0,180.0L206.0,170.0L206.0,164.0L214.0,158.0Z"/><path d="M436.0,198.0L448.0,198.0L448.0,188.0L448.0,180.0L448.0,174.0L446.0,170.0L448.0,166.0L448.0,164.0L448.0,160.0L448.0,152.0L440.0,152.0L436.0,156.0L436.0,148.0L436.0,144.0L434.0,136.0L434.0,128.0L442.0,124.0L450.0,120.0L470.0,124.0L480.0,136.0L490.0,140.0L496.0,148.0L500.0,150.0L486.0,160.0L484.0,170.0L480.0,176.0L476.0,184.0L476.0,192.0L464.0,196.0L460.0,188.0L456.0,184.0L456.0,176.0L456.0,170.0L456.0,164.0L468.0,160.0L472.0,156.0L474.0,144.0L472.0,136.0L480.0,132.0L484.0,124.0L496.0,128.0L500.0,136.0L500.0,144.0L500.0,152.0L504.0,160.0L484.0,170.0L480.0,184.0L472.0,192.0L464.0,196.0L436.0,196.0L436.0,198.0Z"/><path d="M476.0,170.0L476.0,168.0L476.0,164.0L474.0,160.0L472.0,156.0L476.0,152.0L476.0,148.0L472.0,144.0L472.0,140.0L476.0,136.0L480.0,132.0L484.0,128.0L484.0,124.0L492.0,128.0L496.0,132.0L500.0,136.0L500.0,144.0L496.0,148.0L488.0,152.0L486.0,160.0L488.0,164.0L484.0,168.0L476.0,172.0Z"/><path d="M460.0,192.0L460.0,188.0L460.0,184.0L464.0,176.0L476.0,180.0L476.0,188.0L474.0,190.0L468.0,192.0L468.0,196.0L460.0,192.0Z"/><path d="M392.0,216.0L388.0,214.0L384.0,212.0L380.0,210.0L378.0,208.0L376.0,204.0L372.0,200.0L368.0,196.0L368.0,190.0L368.0,184.0L368.0,180.0L368.0,174.0L368.0,168.0L368.0,164.0L364.0,160.0L360.0,156.0L356.0,152.0L352.0,148.0L350.0,144.0L352.0,140.0L352.0,136.0L352.0,132.0L352.0,128.0L352.0,124.0L356.0,120.0L360.0,116.0L364.0,112.0L368.0,108.0L376.0,104.0L380.0,100.0L384.0,96.0L384.0,92.0L380.0,88.0L384.0,80.0L384.0,76.0L388.0,80.0L388.0,88.0L384.0,92.0L388.0,96.0L392.0,96.0L396.0,92.0L380.0,88.0L384.0,80.0L384.0,72.0L380.0,68.0L376.0,72.0L368.0,80.0L360.0,88.0L348.0,92.0L340.0,100.0L332.0,104.0L324.0,108.0L320.0,112.0L316.0,120.0L308.0,124.0L304.0,128.0L292.0,136.0L290.0,140.0L292.0,148.0L296.0,156.0L300.0,164.0L304.0,172.0L308.0,176.0L312.0,180.0L316.0,188.0L320.0,196.0L324.0,200.0L332.0,204.0L340.0,208.0L348.0,208.0L356.0,210.0L360.0,212.0L368.0,212.0L372.0,210.0L376.0,208.0L380.0,212.0L388.0,216.0L392.0,216.0Z"/><path d="M500.0,128.0L500.0,120.0L500.0,100.0L504.0,60.0L508.0,20.0L508.0,-20.0L504.0,-60.0L504.0,-100.0L496.0,-140.0L492.0,-160.0L496.0,-172.0L484.0,-172.0L472.0,-160.0L472.0,-140.0L456.0,-120.0L452.0,-104.0L444.0,-100.0L432.0,-96.0L428.0,-92.0L424.0,-88.0L424.0,-80.0L416.0,-76.0L408.0,-68.0L404.0,-60.0L400.0,-52.0L396.0,-44.0L392.0,-36.0L380.0,-28.0L368.0,-24.0L364.0,-20.0L360.0,-28.0L368.0,-36.0L368.0,-48.0L368.0,-56.0L364.0,-60.0L368.0,-64.0L372.0,-56.0L368.0,-48.0L360.0,-40.0L352.0,-32.0L344.0,-36.0L344.0,-44.0L344.0,-52.0L344.0,-60.0L344.0,-68.0L348.0,-76.0L352.0,-84.0L352.0,-92.0L352.0,-100.0L360.0,-108.0L364.0,-116.0L368.0,-120.0L376.0,-120.0L384.0,-116.0L380.0,-108.0L380.0,-100.0L392.0,-92.0L396.0,-84.0L400.0,-76.0L400.0,-64.0L404.0,-56.0L404.0,-48.0L400.0,-40.0L396.0,-32.0L392.0,-24.0L396.0,-16.0L392.0,-12.0L400.0,-8.0L404.0,-4.0L408.0,0.0L412.0,4.0L416.0,8.0L416.0,12.0L412.0,16.0L408.0,20.0L400.0,24.0L388.0,28.0L400.0,32.0L404.0,36.0L404.0,40.0L404.0,44.0L408.0,48.0L408.0,56.0L404.0,60.0L404.0,64.0L404.0,68.0L392.0,72.0L384.0,76.0L380.0,84.0L380.0,88.0L388.0,92.0L392.0,96.0L396.0,92.0L390.0,100.0L396.0,104.0L400.0,108.0L408.0,108.0L420.0,108.0L428.0,112.0L432.0,116.0L440.0,120.0L444.0,124.0L460.0,128.0L480.0,128.0L500.0,128.0Z"/><path d="M420.0,108.0L416.0,104.0L408.0,100.0L400.0,96.0L396.0,92.0L388.0,88.0L384.0,80.0L392.0,72.0L400.0,64.0L408.0,64.0L412.0,68.0L412.0,76.0L416.0,80.0L420.0,84.0L420.0,88.0L416.0,92.0L412.0,96.0L416.0,100.0L416.0,104.0Z"/><path d="M408.0,48.0L404.0,44.0L404.0,36.0L404.0,28.0L404.0,24.0L408.0,20.0L412.0,16.0L416.0,12.0L416.0,8.0L412.0,4.0L408.0,0.0L404.0,0.0L400.0,4.0L392.0,8.0L388.0,12.0L384.0,16.0L380.0,20.0L376.0,24.0L376.0,28.0L380.0,32.0L388.0,36.0L396.0,40.0L404.0,44.0Z"/><path d="M396.0,-16.0L392.0,-20.0L388.0,-24.0L380.0,-28.0L368.0,-28.0L368.0,-24.0L368.0,-20.0L372.0,-16.0L380.0,-16.0L388.0,-16.0L396.0,-16.0Z"/><path d="M316.0,-48.0L320.0,-56.0L324.0,-64.0L328.0,-72.0L332.0,-80.0L332.0,-88.0L332.0,-92.0L328.0,-96.0L324.0,-100.0L320.0,-104.0L320.0,-108.0L316.0,-112.0L312.0,-116.0L312.0,-120.0L308.0,-124.0L304.0,-128.0L296.0,-124.0L288.0,-120.0L284.0,-116.0L284.0,-112.0L284.0,-108.0L284.0,-104.0L288.0,-100.0L288.0,-96.0L292.0,-92.0L296.0,-84.0L292.0,-76.0L292.0,-68.0L292.0,-60.0L300.0,-52.0L304.0,-48.0L312.0,-48.0Z"/><path d="M292.0,-164.0L288.0,-168.0L284.0,-172.0L284.0,-176.0L280.0,-176.0L276.0,-172.0L276.0,-168.0L272.0,-164.0L268.0,-160.0L272.0,-160.0L280.0,-164.0L292.0,-164.0Z"/><path d="M424.0,-80.0L428.0,-84.0L432.0,-92.0L432.0,-96.0L436.0,-100.0L444.0,-102.0L448.0,-100.0L444.0,-96.0L444.0,-92.0L428.0,-88.0L428.0,-84.0L424.0,-80.0Z"/><path d="M488.0,228.0L492.0,220.0L492.0,208.0L488.0,208.0L484.0,216.0L488.0,228.0Z"/><path d="M336.0,92.0L332.0,80.0L324.0,80.0L316.0,84.0L312.0,92.0L324.0,92.0L336.0,92.0Z"/>
+  </g>
+</svg>
+      <canvas id="ipMapCanvas" style="position:absolute;inset:0;width:100%;height:100%;background:transparent;"></canvas>
+    </div>
       <div class="iphopinfo" id="ipHopInfo">Initialising trace…</div>
       <div class="ipeasyopts" id="ipEasyOpts"></div>
 
@@ -935,8 +987,31 @@ html,body{ height:var(--app-h); }
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v10.js -->
-<script src="loader.js"></script>
+<!-- All file versions managed in loader_2026-06-10_v11.js -->
+<script src="loader_2026-06-10_v11.js"></script>
+
+
+<!-- ATTACK BRIEFING MODAL -->
+<div id="attackBriefing" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.9);justify-content:center;align-items:center;">
+  <div class="brief-box">
+    <div class="brief-flash">⚡ NEW ATTACK TYPE DETECTED ⚡</div>
+    <div class="brief-title" id="briefTitle">Attack Name</div>
+    <div class="brief-tagline" id="briefTagline">Tagline here</div>
+    <div class="brief-section">
+      <div class="brief-label">WHAT IS IT?</div>
+      <div class="brief-text" id="briefSummary"></div>
+    </div>
+    <div class="brief-section">
+      <div class="brief-label">🔍 WHAT TO WATCH FOR</div>
+      <div class="brief-text brief-watch" id="briefWatch"></div>
+    </div>
+    <div class="brief-section">
+      <div class="brief-label">🌍 REAL WORLD CASE</div>
+      <div class="brief-text brief-real" id="briefReal"></div>
+    </div>
+    <button class="btn btn-g btn-orb brief-btn" id="briefClose">🕵️ START INVESTIGATION →</button>
+  </div>
+</div>
 
 <!-- IP TRACE RETRY MODAL -->
 <div id="ipRetryModal" style="display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,.88);justify-content:center;align-items:center;">
