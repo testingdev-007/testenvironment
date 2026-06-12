@@ -90,6 +90,47 @@ function confirmReset(){
 }
 
 // ── BOOT ──────────────────────────────────────────────────────
+
+// ── XP POPUP — centre screen, scrolling number animation ─────
+
+// ── ATTACK BRIEFING — shown after tool select, before data cards ─
+function showAttackBriefing(mod, onClose){
+  const b=mod.briefing;
+  if(!b){onClose();return;}
+  const el=document.getElementById('attackBriefing');
+  document.getElementById('briefTitle').textContent=b.title;
+  document.getElementById('briefTagline').textContent=b.tagline;
+  document.getElementById('briefSummary').textContent=b.summary;
+  document.getElementById('briefWatch').textContent=b.watchFor;
+  document.getElementById('briefReal').textContent=b.realWorld;
+  el.style.display='flex';
+  document.getElementById('briefClose').onclick=()=>{el.style.display='none';onClose();};
+}
+
+function showXPPopup(amount, label){
+  const el=document.createElement('div');
+  el.className='xp-pop';
+  el.innerHTML=`<div class="xp-pop-amt">+${amount}</div><div class="xp-pop-lbl">${label||'XP'}</div>`;
+  document.body.appendChild(el);
+  // Animate: fade in, drift up, fade out
+  let opacity=0, y=0, raf;
+  const rise=()=>{
+    opacity=Math.min(1,opacity+0.08);
+    y=Math.max(-80,y-1.4);
+    el.style.opacity=opacity;
+    el.style.transform=`translate(-50%,${y}px)`;
+    if(y>-80||opacity<1)raf=requestAnimationFrame(rise);
+    else{
+      setTimeout(()=>{
+        let op=1;
+        const fade=()=>{op-=0.06;el.style.opacity=op;if(op>0)requestAnimationFrame(fade);else el.remove();};
+        requestAnimationFrame(fade);
+      },900);
+    }
+  };
+  requestAnimationFrame(rise);
+}
+
 function _boot(){
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
@@ -435,7 +476,8 @@ function loadTool(){
     toast('✓ Correct tool loaded!','ok');
     /*vox*/;
     GS.scenarioRagDone=true;
-    renderToolData();setStep(3);
+    const _bm=MODULES[GS.modId];
+    if(_bm&&_bm.briefing&&!GS.briefingSeen){GS.briefingSeen=true;showAttackBriefing(_bm,()=>{renderToolData();setStep(3);});}else{renderToolData();setStep(3);}
     SFX.correct();
   } else {
     GS.badTools++;loseH('Wrong tool');addXP(-5);gcMod(GS.modId,'onToolWrong');/*vox*/;
@@ -805,39 +847,10 @@ function resizeMapCanvas(cv) {
 function drawNeonMap(cv, trail, currentHop) {
   try {
     const ctx = cv.getContext('2d');
-    const w = cv.width || 680, h = cv.height || 240;
+    const w = cv.width || 680, h = cv.height || 160;
 
-    // Background
-    ctx.fillStyle = '#010d03';
-    ctx.fillRect(0, 0, w, h);
-
-    // CRT scan lines
-    for (let y = 0; y < h; y += 3) {
-      ctx.fillStyle = 'rgba(0,0,0,0.12)';
-      ctx.fillRect(0, y, w, 1);
-    }
-
-    // Grid
-    ctx.strokeStyle = 'rgba(0,255,65,0.08)';
-    ctx.lineWidth = 0.5;
-    for (let lat = -60; lat <= 60; lat += 30) {
-      const p = mapProj(lat, 0, w, h);
-      ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(w, p.y); ctx.stroke();
-    }
-    for (let lon = -150; lon <= 180; lon += 30) {
-      const p = mapProj(0, lon, w, h);
-      ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, h); ctx.stroke();
-    }
-
-    // City reference dots — geographic anchors
-    if (typeof CITIES !== 'undefined') {
-      CITIES.forEach(c => {
-        const p = mapProj(c.lat, c.lon, w, h);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0,255,65,0.25)';
-        ctx.fill();
-      });
-    }
+    // Canvas is transparent — SVG behind it draws background, grid, continents
+    ctx.clearRect(0, 0, w, h);
 
     // Trail line between hops
     if (trail && trail.length > 1) {
@@ -1293,7 +1306,7 @@ function resetAll(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.getElementById('plenaryModal').classList.remove('open');
   document.body.classList.remove('alert-mode');
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
+  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingSeen:false,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
   document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
