@@ -659,6 +659,14 @@ html,body{ height:var(--app-h); }
 
 
 
+
+/* ── EMAIL VIEW — inline From/Subject ── */
+.evmeta{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:8px 10px;background:rgba(0,255,65,.04);border-bottom:1px solid rgba(0,255,65,.12);font-size:11px;}
+.evlbl{color:rgba(0,255,65,.5);font-size:10px;letter-spacing:.08em;text-transform:uppercase;flex-shrink:0;}
+.evsep{margin-left:10px;}
+.evval{color:#c8ffc8;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.evbig{color:#e8ffe8;font-weight:600;}
+.evbody{padding:10px;font-size:12px;line-height:1.55;color:#b0d8b0;white-space:pre-wrap;word-break:break-word;}
 </style>
 </head>
 <body>
@@ -698,7 +706,7 @@ html,body{ height:var(--app-h); }
   <!-- LEFT: refresh + action bar + inbox + chat -->
   <div id="lc">
     <div id="refreshRow">
-      <button id="btnRefresh" onclick="refreshInbox()">⟳ CHECK FOR NEW EMAILS</button>
+      <button id="btnRefresh" onclick="refreshInbox()" disabled style="opacity:0.5;cursor:not-allowed;">⟳ LOADING…</button>
     </div>
     <!-- Open / Report buttons — always visible above inbox -->
     <div class="eab">
@@ -898,8 +906,8 @@ html,body{ height:var(--app-h); }
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v1.js -->
-<script src="loader.js"></script>
+<!-- All file versions managed in loader_2026-06-10_v10.js -->
+<script src="loader_2026-06-10_v10.js"></script>
 
 <!-- IP TRACE RETRY MODAL -->
 <div id="ipRetryModal" style="display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,.88);justify-content:center;align-items:center;">
