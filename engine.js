@@ -131,6 +131,25 @@ function showXPPopup(amount, label){
   requestAnimationFrame(rise);
 }
 
+
+// ── STUCK TIMER — fires context-sensitive hints if card not answered ──
+function startStuckTimer(){
+  clearStuckTimer();
+  GS.stuckTimer=setTimeout(function fireStuck(){
+    const pool=(MODULE_GROUP_CHAT[GS.modId]||{}).onStuck;
+    if(pool&&pool.length){
+      const e=pool[Math.min(GS.stuckCount,pool.length-1)];
+      gcMsg(e.persona,pick(e.msgs));
+      GS.stuckCount++;
+    }
+    // Fire again after progressively longer delay
+    GS.stuckTimer=setTimeout(fireStuck, 18000);
+  },14000);
+}
+function clearStuckTimer(){
+  if(GS.stuckTimer){clearTimeout(GS.stuckTimer);GS.stuckTimer=null;}
+}
+
 function _boot(){
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
@@ -324,7 +343,7 @@ function loadModule(id){
   // Guard: close any stale plenary, clear chat for fresh mission
   document.getElementById('plenaryModal').classList.remove('open');
   GS.debriefModId=null;GS.plenReportDone=false;GS.plenQuizAnswered=0;GS.plenQuizTotal=0;
-  GS.emailOpened=false;
+  GS.emailOpened=false;GS.stuckCount=0;clearStuckTimer();
   GS.round++;rRound();  // only real modules count
   GS.modId=id;GS.correctTool=mod.tools.correct;GS.toolOk=false;
   GS.reportReady=false;GS.badTools=0;GS.active=true;
@@ -541,6 +560,7 @@ function renderToolData(){
 }
 
 function cardClicked(idx){
+  startStuckTimer();
   const item=GS.scenario&&GS.scenario[idx];
   if(!item)return;
   if(GS.modId==='ddos'&&item.graphData&&item.avgHitsMin){
@@ -549,6 +569,7 @@ function cardClicked(idx){
 }
 
 function doAction(rowIdx,actId){
+  clearStuckTimer();GS.stuckCount=0;
   const item=GS.scenario[rowIdx];
   if(!item||item.handled){toast('Already handled!','warn');return;}
   item.handled=true;
@@ -1306,7 +1327,7 @@ function resetAll(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.getElementById('plenaryModal').classList.remove('open');
   document.body.classList.remove('alert-mode');
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingSeen:false,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
+  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingSeen:false,stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
   document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
