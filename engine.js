@@ -112,6 +112,25 @@ function showAttackBriefing(mod, onClose){
   }catch(e){console.warn('Briefing error:',e);if(onClose)onClose();}
 }
 
+
+// ── XP MODAL — centre screen, requires OK to dismiss ──────────
+function showXPModal(amount, label, onDone){
+  try{
+    const el=document.getElementById('xpModal');
+    if(!el){showXPPopup(amount,label);setTimeout(onDone||function(){},400);return;}
+    document.getElementById('xpModalAmt').textContent='+'+amount;
+    document.getElementById('xpModalLbl').textContent=label||'XP Earned!';
+    el.style.display='flex';
+    document.getElementById('xpModalOk').onclick=function(){
+      el.style.display='none';
+      if(onDone)onDone();
+    };
+  }catch(e){
+    console.warn('XP modal error:',e);
+    if(onDone)onDone();
+  }
+}
+
 function showXPPopup(amount, label){
   const el=document.createElement('div');
   el.className='xp-pop';
@@ -194,8 +213,11 @@ function rHearts(){
 }
 function loseH(why){try{SFX.wrong();}catch(e){}GS.livesLost=(GS.livesLost||0)+1;if(GS.hearts<=1){toast('Hanging on!','bad');return;}GS.hearts=Math.max(1,GS.hearts-1);rHearts();toast('-1 ❤  '+why,'bad');}
 function rXP(){document.getElementById('xpNum').textContent=GS.xp;document.getElementById('xpFill').style.width=Math.min(100,(GS.xp/500)*100)+'%';}
-function addXP(n,lbl){
-  if(n>0)showXPPopup(n,lbl||'XP EARNED 🎉');if(!n)return;GS.xp=Math.max(0,GS.xp+n);rXP();toast(n>0?'+'+n+' XP ✦':n+' XP',n>0?'ok':'bad');}
+function addXP(n){
+  if(!n)return;
+  GS.xp=Math.max(0,GS.xp+n);
+  rXP();
+}
 function rRound(){document.getElementById('roundNum').textContent=GS.round+'/'+GS.totalRounds;}
 function setSim(t){document.getElementById('simStatus').textContent=t;}
 function toast(msg,type='ok'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+type;clearTimeout(el._t);el._t=setTimeout(()=>{el.className='';},3000);}
@@ -498,17 +520,21 @@ function loadTool(){
   if(v===GS.correctTool){
     GS.toolOk=true;GS.badTools=0;addXP(10);
     gcMod(GS.modId,'onToolCorrect');
-    toast('✓ Correct tool loaded!','ok');
-    /*vox*/;
+    try{SFX.correct();}catch(e){}
     GS.scenarioRagDone=true;
-    renderToolData();setStep(3);
-    // Briefing shown AFTER data loads — informational overlay, not a gatekeeper
-    const _bm=MODULES[GS.modId];
-    if(_bm&&_bm.briefing&&!GS.briefingsSeen.has(GS.modId)){
-      GS.briefingsSeen.add(GS.modId);
-      setTimeout(()=>showAttackBriefing(_bm,()=>{}),350);
-    }
-    SFX.correct();
+    // Sequential modal chain: XP → briefing → data cards
+    const _toolMod=MODULES[GS.modId];
+    const _hasBriefing=_toolMod&&_toolMod.briefing&&!GS.briefingsSeen.has(GS.modId);
+    const _showData=()=>{renderToolData();setStep(3);};
+    const _showBriefing=()=>{
+      if(_hasBriefing){
+        GS.briefingsSeen.add(GS.modId);
+        showAttackBriefing(_toolMod,_showData);
+      } else {
+        _showData();
+      }
+    };
+    showXPModal(10,'🎯 Correct Tool!',_showBriefing);
   } else {
     GS.badTools++;loseH('Wrong tool');addXP(-5);gcMod(GS.modId,'onToolWrong');/*vox*/;
     const hint=GS.badTools>=2?'<br><br><em>Hint: your email tells you what type of attack it is — which tool matches?</em>':'';
@@ -529,7 +555,14 @@ const MODULE_LEGENDS = {
 // ── RENDER TABLE (card layout) ─────────────────────────────────
 function renderToolData(){
   const id=GS.modId,sc=GS.scenario,cols=MODULE_COLUMNS[id];
-  if(!sc||!Array.isArray(sc)||!cols){console.warn('renderToolData: missing data for',id);return;}
+  if(!sc||!Array.isArray(sc)){
+    document.getElementById('toolData').innerHTML='<div class="terr">⚠ No scenario data — try refreshing your inbox.</div>';
+    console.error('renderToolData: scenario missing for',id,sc);return;
+  }
+  if(!cols){
+    document.getElementById('toolData').innerHTML='<div class="terr">⚠ Module not configured for this tool.</div>';
+    console.error('renderToolData: columns missing for',id);return;
+  }
   // Legend strip at top
   const legend=MODULE_LEGENDS[id]||'';
   let html=legend?`<div class="legend-strip">${esc(legend)}</div>`:'';
