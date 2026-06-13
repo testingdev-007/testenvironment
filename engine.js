@@ -98,6 +98,7 @@ function showAttackBriefing(mod, onClose){
   const b=mod.briefing;
   if(!b){onClose();return;}
   const el=document.getElementById('attackBriefing');
+  if(!el){onClose();return;}  // graceful fallback if modal missing from HTML
   document.getElementById('briefTitle').textContent=b.title;
   document.getElementById('briefTagline').textContent=b.tagline;
   document.getElementById('briefSummary').textContent=b.summary;
@@ -153,7 +154,7 @@ function clearStuckTimer(){
 function _boot(){
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
-  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
+  document.getElementById('btnRefresh').classList.add('pulse-glow');
   gcMsg('zara',  pick(GENERAL_GROUP_CHAT.welcome[0].msgs),700);
   gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
   gcMsg('priya', pick(GENERAL_GROUP_CHAT.welcome[2].msgs),8000);
@@ -189,7 +190,8 @@ function rHearts(){
 }
 function loseH(why){try{SFX.wrong();}catch(e){}GS.livesLost=(GS.livesLost||0)+1;if(GS.hearts<=1){toast('Hanging on!','bad');return;}GS.hearts=Math.max(1,GS.hearts-1);rHearts();toast('-1 ❤  '+why,'bad');}
 function rXP(){document.getElementById('xpNum').textContent=GS.xp;document.getElementById('xpFill').style.width=Math.min(100,(GS.xp/500)*100)+'%';}
-function addXP(n){if(!n)return;GS.xp=Math.max(0,GS.xp+n);rXP();toast(n>0?'+'+n+' XP ✦':n+' XP',n>0?'ok':'bad');}
+function addXP(n,lbl){
+  if(n>0)showXPPopup(n,lbl||'XP EARNED 🎉');if(!n)return;GS.xp=Math.max(0,GS.xp+n);rXP();toast(n>0?'+'+n+' XP ✦':n+' XP',n>0?'ok':'bad');}
 function rRound(){document.getElementById('roundNum').textContent=GS.round+'/'+GS.totalRounds;}
 function setSim(t){document.getElementById('simStatus').textContent=t;}
 function toast(msg,type='ok'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+type;clearTimeout(el._t);el._t=setTimeout(()=>{el.className='';},3000);}
@@ -1114,7 +1116,7 @@ function closeIPTrace(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.body.classList.remove('alert-mode');
   GS.active=false;setSim('READY');setStep(0);clearGlows();
-  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
+  document.getElementById('btnRefresh').classList.add('pulse-glow');
   schedAutoAdvance(12000);
 }
 
@@ -1309,7 +1311,7 @@ function closePlenary(){
   const savedId=GS.debriefModId;
   document.getElementById('plenaryModal').classList.remove('open');
   if(savedId){gcMod(savedId,'scenarioComplete',300);}
-  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
+  document.getElementById('btnRefresh').classList.add('pulse-glow');
   GS.debriefModId=null;
   if(GS.round>=GS.totalRounds&&!GS.queue.length){setTimeout(showEndgame,2000);}
   else{schedAutoAdvance(18000);}
@@ -1339,7 +1341,7 @@ function resetAll(){
   document.getElementById('chatMsgs').innerHTML='';
   setSim('READY');setStep(0);
   // Re-pulse the refresh button to guide child
-  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
+  document.getElementById('btnRefresh').classList.add('pulse-glow');
   gcMsg('zara', pick(GENERAL_GROUP_CHAT.welcome[0].msgs),600);
   gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
 }
