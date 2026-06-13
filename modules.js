@@ -719,6 +719,25 @@ const MODULE_ACTIONS = {
     { id: 'investigate', label: 'FLAG FOR REVIEW', cls: 'btn-throttle' },
     { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
   ],
+  phishingModule: [
+    { id: 'report', label: '🚩 REPORT PHISHING', cls: 'btn-block' },
+    { id: 'ignore', label: '✅ DELIVER (GENUINE)', cls: 'btn-ignore' }
+  ],
+  bruteForce: [
+    { id: 'lockAccount', label: '🔒 LOCK ACCOUNT', cls: 'btn-block' },
+    { id: 'investigate', label: '🔍 INVESTIGATE', cls: 'btn-throttle' },
+    { id: 'ignore', label: '✅ NORMAL ACTIVITY', cls: 'btn-ignore' }
+  ],
+  socialEng: [
+    { id: 'block', label: '🚫 BLOCK & REPORT', cls: 'btn-block' },
+    { id: 'investigate', label: '🔍 VERIFY FIRST', cls: 'btn-throttle' },
+    { id: 'ignore', label: '✅ LEGITIMATE', cls: 'btn-ignore' }
+  ],
+  usbDrop: [
+    { id: 'quarantine', label: '🔌 QUARANTINE PC', cls: 'btn-block' },
+    { id: 'investigate', label: '🔍 INVESTIGATE', cls: 'btn-throttle' },
+    { id: 'ignore', label: '✅ AUTHORISED', cls: 'btn-ignore' }
+  ],
   vulnerabilityScan: [
     { id: 'patchNow', label: 'PATCH NOW', cls: 'btn-block' },
     { id: 'schedulePatch', label: 'SCHEDULE PATCH', cls: 'btn-throttle' },
