@@ -979,6 +979,10 @@ MODULE_ACTIONS.bruteForce = [
 MODULES.socialEng = {
   id: 'socialEng',
   name: 'SOCIAL ENGINEERING',
+  tools: {
+    correct: 'Help Desk Log Analyser',
+    decoys: ['Network Traffic Monitor','Process Monitor','File Integrity Monitor','Email Header Analyser','Access Attempt Analyser','USB Device Log'],
+  },
   emailSender: () => pick(['security@infosec.io','alerts@staffwatch.net','hr-security@company.com']),
   emailSubject: () => pick(['Unusual Staff Request Flagged','Help Desk Alert: Suspicious Caller','Social Engineering Attempt Reported']),
   emailBody(scenario){
@@ -1082,6 +1086,10 @@ MODULE_COLUMNS.socialEng = [
 MODULES.usbDrop = {
   id: 'usbDrop',
   name: 'USB DROP ATTACK',
+  tools: {
+    correct: 'USB Device Log',
+    decoys: ['Network Traffic Monitor','Process Monitor','File Integrity Monitor','Email Header Analyser','Access Attempt Analyser','Help Desk Log Analyser'],
+  },
   emailSender: () => pick(['alerts@usb-monitor.net','security@devicewatch.io','it-security@company.com']),
   emailSubject: () => pick(['Unknown USB Devices Detected','USB Security Alert','Suspicious Device Connections Logged']),
   emailBody(scenario){
