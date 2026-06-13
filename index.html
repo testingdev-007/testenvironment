@@ -852,7 +852,7 @@ html,body{ height:var(--app-h); }
   <canvas id="wm-matrix" style="position:absolute;inset:0;width:100%;height:100%;opacity:.07;pointer-events:none;"></canvas>
   <div class="wm-logo">CYBERSHIELD<br>ACADEMY</div>
   <div class="wm-sub">CYBER DETECTIVE TRAINING</div>
-  <button class="wm-btn" onclick="launchMission()">▶ START TRAINING</button>
+  <button class="wm-btn" onclick="this.closest('#welcomeModal').style.display='none';if(typeof launchMission==='function')launchMission();">▶ START TRAINING</button>
   <div class="wm-hint">Click to begin!</div>
 </div>
 
@@ -1009,7 +1009,7 @@ html,body{ height:var(--app-h); }
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v20.js -->
+<!-- All file versions managed in loader_2026-06-10_v21.js -->
 <script src="loader.js"></script>
 
 
