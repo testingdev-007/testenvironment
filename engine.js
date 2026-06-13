@@ -592,7 +592,7 @@ function renderToolData(){
       (MODULE_ACTIONS[id]||[]).forEach(a=>{
         const cls=a.id==='block'||a.id==='quarantine'||a.id==='isolate'||a.id==='lockAccount'||a.id==='report'?'btn-r':
                   a.id==='ignore'?'btn-d':'btn-a';
-        html+=`<button class="btn btn-sm ${cls}" onclick="doAction(${i},'${a.id}')">${a.label}</button>`;
+        html+=`<button class="btn btn-sm ${cls}" onclick="event.stopPropagation();doAction(${i},'${a.id}')">${a.label}</button>`;
       });
       html+=`</div>`;
     } else if(done){
@@ -602,27 +602,25 @@ function renderToolData(){
     html+=`</div>`;
   });
   document.getElementById('toolData').innerHTML=html;
-  // graph removed — data cards only
   updBar();
+  // Start the stuck-hint timer once data is showing (if not all done)
+  if(GS.scenario&&!GS.scenario.every(s=>s.handled)){startStuckTimer();}
 }
 
 function cardClicked(idx){
-  startStuckTimer();
-  const item=GS.scenario&&GS.scenario[idx];
-  if(!item)return;
-  if(GS.modId==='ddos'&&item.graphData&&item.avgHitsMin){
-    // graph removed
-  }
+  // Card tap does nothing now — action buttons handle everything.
+  // (Kept as a no-op so existing onclick attributes don't error.)
 }
 
 function doAction(rowIdx,actId){
+  if(window.event){try{window.event.stopPropagation();}catch(e){}}
   clearStuckTimer();GS.stuckCount=0;
   const item=GS.scenario[rowIdx];
   if(!item||item.handled){toast('Already handled!','warn');return;}
   item.handled=true;
   item.userAction=actId;
   const ao=(actId===item.actionAnswer);
-  if(ao){try{SFX.correct();}catch(e){}/*vox*/addXP(15);gcMod(GS.modId,'onActionCorrect',200);}
+  if(ao){try{SFX.correct();}catch(e){}addXP(15);showXPPopup(15,'CORRECT ✓');gcMod(GS.modId,'onActionCorrect',200);}
   else{loseH('Wrong action');addXP(-5);/*vox*/gcMod(GS.modId,'onActionWrong',200);}
   // DDoS graph
   // graph removed
