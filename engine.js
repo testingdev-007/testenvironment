@@ -501,8 +501,13 @@ function loadTool(){
     toast('✓ Correct tool loaded!','ok');
     /*vox*/;
     GS.scenarioRagDone=true;
+    renderToolData();setStep(3);
+    // Briefing shown AFTER data loads — informational overlay, not a gatekeeper
     const _bm=MODULES[GS.modId];
-    if(_bm&&_bm.briefing&&!GS.briefingsSeen.has(GS.modId)){GS.briefingsSeen.add(GS.modId);showAttackBriefing(_bm,()=>{renderToolData();setStep(3);});}else{renderToolData();setStep(3);}
+    if(_bm&&_bm.briefing&&!GS.briefingsSeen.has(GS.modId)){
+      GS.briefingsSeen.add(GS.modId);
+      setTimeout(()=>showAttackBriefing(_bm,()=>{}),350);
+    }
     SFX.correct();
   } else {
     GS.badTools++;loseH('Wrong tool');addXP(-5);gcMod(GS.modId,'onToolWrong');/*vox*/;
