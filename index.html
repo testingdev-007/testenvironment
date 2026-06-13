@@ -731,6 +731,25 @@ html,body{ height:var(--app-h); }
 #ipMapWrap svg,#ipMapWrap canvas{position:absolute;inset:0;width:100%;height:100%;}
 #ipMapCanvas{background:transparent !important;}
 
+
+/* ── XP EARNED MODAL ─────────────────────────────────────── */
+.xp-modal-box{background:#030f03;border:2px solid var(--grn);
+              box-shadow:0 0 80px rgba(0,255,65,.5);border-radius:10px;
+              padding:36px 44px;text-align:center;min-width:260px;}
+.xp-modal-ring{width:130px;height:130px;border-radius:50%;margin:0 auto 16px;
+               border:3px solid #00ff41;display:flex;flex-direction:column;
+               justify-content:center;align-items:center;
+               box-shadow:0 0 40px rgba(0,255,65,.6),inset 0 0 30px rgba(0,255,65,.1);
+               animation:xpRingPulse .6s ease;}
+.xp-modal-amt{font-family:'Orbitron',monospace;font-size:44px;font-weight:900;
+              color:#00ff41;text-shadow:0 0 30px #00ff41;line-height:1;}
+.xp-modal-unit{font-family:'Share Tech Mono',monospace;font-size:13px;
+               color:rgba(0,255,65,.6);letter-spacing:.2em;margin-top:2px;}
+.xp-modal-lbl{font-family:'Orbitron',monospace;font-size:14px;color:#c8ffc8;
+              margin-bottom:20px;letter-spacing:.05em;}
+.xp-modal-ok{width:100%;padding:12px;font-size:13px;letter-spacing:.1em;}
+@keyframes xpRingPulse{0%{transform:scale(.7);opacity:0}70%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+
 </style>
 </head>
 <body>
@@ -990,9 +1009,22 @@ html,body{ height:var(--app-h); }
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v13.js -->
+<!-- All file versions managed in loader_2026-06-10_v16.js -->
 <script src="loader.js"></script>
 
+
+
+<!-- XP EARNED MODAL -->
+<div id="xpModal" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.88);justify-content:center;align-items:center;">
+  <div class="xp-modal-box">
+    <div class="xp-modal-ring">
+      <div class="xp-modal-amt" id="xpModalAmt">+10</div>
+      <div class="xp-modal-unit">XP</div>
+    </div>
+    <div class="xp-modal-lbl" id="xpModalLbl">Correct Tool!</div>
+    <button class="btn btn-g xp-modal-ok" id="xpModalOk">NEXT →</button>
+  </div>
+</div>
 
 <!-- ATTACK BRIEFING MODAL -->
 <div id="attackBriefing" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.9);justify-content:center;align-items:center;">
