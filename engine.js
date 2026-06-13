@@ -44,7 +44,7 @@ const GS = {
   quizCorrect:0, quizTotal:0,
   phishReported:false, ipWon:false, livesLost:0,
   selectedEmailId:null,
-  emailOpened:false, // set true when email content shown
+  emailOpened:false,stuckCount:0,stuckTimer:null,briefingsSeen:null,
   // Per-session escalation control
   sessionFlags:{allGreenUsed:false, highEscalationUsed:false, lastWasLow:false},
 };
@@ -91,93 +91,70 @@ function confirmReset(){
 
 // ── BOOT ──────────────────────────────────────────────────────
 
-// ── XP POPUP — centre screen, scrolling number animation ─────
+// ── TOOL MODAL CHAIN ─────────────────────────────────────────
+// renderToolData() always runs first. These modals overlay on top.
+// If modals fail for any reason data cards are still visible beneath.
+function showToolModals(modId){
+  var mod=MODULES[modId];
+  // Always show XP modal first
+  showXPModal(10,'🎯 Correct Tool!',function(){
+    // Then show briefing if this module has one and hasn't been seen
+    if(mod&&mod.briefing&&!GS.briefingsSeen.has(modId)){
+      GS.briefingsSeen.add(modId);
+      showAttackBriefing(mod);
+    }
+  });
+}
 
-// ── ATTACK BRIEFING — shown after tool select, before data cards ─
-function showAttackBriefing(mod, onClose){
+function showXPModal(amount,label,onOk){
   try{
-    const b=mod.briefing;
-    if(!b){onClose();return;}
-    const el=document.getElementById('attackBriefing');
-    if(!el){onClose();return;}
-    const ids=['briefTitle','briefTagline','briefSummary','briefWatch','briefReal','briefClose'];
-    if(ids.some(id=>!document.getElementById(id))){onClose();return;}
+    var el=document.getElementById('xpModal');
+    if(!el){if(onOk)onOk();return;}
+    document.getElementById('xpModalAmt').textContent='+'+amount;
+    document.getElementById('xpModalLbl').textContent=label||'XP Earned!';
+    el.style.display='flex';
+    document.getElementById('xpModalOk').onclick=function(){
+      el.style.display='none';
+      if(onOk)onOk();
+    };
+  }catch(e){console.warn('XP modal error:',e);if(onOk)onOk();}
+}
+
+function showAttackBriefing(mod){
+  try{
+    var b=mod.briefing;if(!b)return;
+    var el=document.getElementById('attackBriefing');if(!el)return;
+    var ids=['briefTitle','briefTagline','briefSummary','briefWatch','briefReal','briefClose'];
+    if(ids.some(function(id){return !document.getElementById(id);}))return;
     document.getElementById('briefTitle').textContent=b.title||'';
     document.getElementById('briefTagline').textContent=b.tagline||'';
     document.getElementById('briefSummary').textContent=b.summary||'';
     document.getElementById('briefWatch').textContent=b.watchFor||'';
     document.getElementById('briefReal').textContent=b.realWorld||'';
     el.style.display='flex';
-    document.getElementById('briefClose').onclick=()=>{el.style.display='none';onClose();};
-  }catch(e){console.warn('Briefing error:',e);if(onClose)onClose();}
+    document.getElementById('briefClose').onclick=function(){el.style.display='none';};
+  }catch(e){console.warn('Briefing error:',e);}
 }
 
-
-// ── XP MODAL — centre screen, requires OK to dismiss ──────────
-function showXPModal(amount, label, onDone){
-  try{
-    const el=document.getElementById('xpModal');
-    if(!el){showXPPopup(amount,label);setTimeout(onDone||function(){},400);return;}
-    document.getElementById('xpModalAmt').textContent='+'+amount;
-    document.getElementById('xpModalLbl').textContent=label||'XP Earned!';
-    el.style.display='flex';
-    document.getElementById('xpModalOk').onclick=function(){
-      el.style.display='none';
-      if(onDone)onDone();
-    };
-  }catch(e){
-    console.warn('XP modal error:',e);
-    if(onDone)onDone();
-  }
-}
-
-function showXPPopup(amount, label){
-  const el=document.createElement('div');
-  el.className='xp-pop';
-  el.innerHTML=`<div class="xp-pop-amt">+${amount}</div><div class="xp-pop-lbl">${label||'XP'}</div>`;
-  document.body.appendChild(el);
-  // Animate: fade in, drift up, fade out
-  let opacity=0, y=0, raf;
-  const rise=()=>{
-    opacity=Math.min(1,opacity+0.08);
-    y=Math.max(-80,y-1.4);
-    el.style.opacity=opacity;
-    el.style.transform=`translate(-50%,${y}px)`;
-    if(y>-80||opacity<1)raf=requestAnimationFrame(rise);
-    else{
-      setTimeout(()=>{
-        let op=1;
-        const fade=()=>{op-=0.06;el.style.opacity=op;if(op>0)requestAnimationFrame(fade);else el.remove();};
-        requestAnimationFrame(fade);
-      },900);
-    }
-  };
-  requestAnimationFrame(rise);
-}
-
-
-// ── STUCK TIMER — fires context-sensitive hints if card not answered ──
+// ── STUCK TIMER ───────────────────────────────────────────────
 function startStuckTimer(){
   clearStuckTimer();
   GS.stuckTimer=setTimeout(function fireStuck(){
-    const pool=(MODULE_GROUP_CHAT[GS.modId]||{}).onStuck;
+    var pool=(MODULE_GROUP_CHAT[GS.modId]||{}).onStuck;
     if(pool&&pool.length){
-      const e=pool[Math.min(GS.stuckCount,pool.length-1)];
+      var e=pool[Math.min(GS.stuckCount||0,pool.length-1)];
       gcMsg(e.persona,pick(e.msgs));
-      GS.stuckCount++;
+      GS.stuckCount=(GS.stuckCount||0)+1;
     }
-    // Fire again after progressively longer delay
-    GS.stuckTimer=setTimeout(fireStuck, 18000);
+    GS.stuckTimer=setTimeout(fireStuck,18000);
   },14000);
 }
-function clearStuckTimer(){
-  if(GS.stuckTimer){clearTimeout(GS.stuckTimer);GS.stuckTimer=null;}
-}
+function clearStuckTimer(){if(GS.stuckTimer){clearTimeout(GS.stuckTimer);GS.stuckTimer=null;}}
 
-function _boot(){
+function _boot(){GS.briefingsSeen=new Set();
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   gcMsg('zara',  pick(GENERAL_GROUP_CHAT.welcome[0].msgs),700);
   gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
   gcMsg('priya', pick(GENERAL_GROUP_CHAT.welcome[2].msgs),8000);
@@ -217,23 +194,6 @@ function addXP(n){
   if(!n)return;
   GS.xp=Math.max(0,GS.xp+n);
   rXP();
-}
-function rRound(){document.getElementById('roundNum').textContent=GS.round+'/'+GS.totalRounds;}
-function setSim(t){document.getElementById('simStatus').textContent=t;}
-function toast(msg,type='ok'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+type;clearTimeout(el._t);el._t=setTimeout(()=>{el.className='';},3000);}
-
-function setStep(n){
-  for(let i=1;i<=5;i++){const el=document.getElementById('st'+i);if(!el)continue;el.classList.remove('on','done');if(i===n)el.classList.add('on');else if(i<n)el.classList.add('done');}
-  clearTimeout(GS.stuckTimer);
-  if(n>0&&n<5){GS.stuckStep=n;GS.stuckTimer=setTimeout(()=>{if(GS.stuckStep===n&&GS.active)offerHelp(n);},50000);}
-  // Glow the panel the child needs to use right now
-  clearGlows();
-  if(n===1){setGlow('inboxPanel','action-glow');setGlow('emailPanel','action-glow');}
-  else if(n===2){setGlow('toolPanel','action-glow');}
-  else if(n===3||n===4){setGlow('toolPanel','amber-glow');}
-  else if(n===5){setGlow('toolPanel','action-glow');}
-  // On mobile: bring the relevant panel into view automatically
-  if(typeof mobileAutoTab==='function') mobileAutoTab(n);
 }
 function setGlow(id,cls){const el=document.getElementById(id);if(el)el.classList.add(cls);}
 function clearGlows(){
@@ -371,7 +331,7 @@ function loadModule(id){
   // Guard: close any stale plenary, clear chat for fresh mission
   document.getElementById('plenaryModal').classList.remove('open');
   GS.debriefModId=null;GS.plenReportDone=false;GS.plenQuizAnswered=0;GS.plenQuizTotal=0;
-  GS.emailOpened=false;GS.stuckCount=0;clearStuckTimer();
+  GS.emailOpened=false;GS.stuckCount=0;clearStuckTimer();GS.briefingSeen=false;
   GS.round++;rRound();  // only real modules count
   GS.modId=id;GS.correctTool=mod.tools.correct;GS.toolOk=false;
   GS.reportReady=false;GS.badTools=0;GS.active=true;
@@ -466,7 +426,7 @@ function actOnSelectedEmail(action){
   }
 }
 
-function showEmailContent(email){
+function showEmailContent(email){GS.emailOpened=true;
   GS.emailOpened=true;
   document.getElementById('welcomeMsg').style.display='none';
   const v=document.getElementById('emailView');v.style.display='block';
@@ -522,19 +482,10 @@ function loadTool(){
     gcMod(GS.modId,'onToolCorrect');
     try{SFX.correct();}catch(e){}
     GS.scenarioRagDone=true;
-    // Sequential modal chain: XP → briefing → data cards
-    const _toolMod=MODULES[GS.modId];
-    const _hasBriefing=_toolMod&&_toolMod.briefing&&!GS.briefingsSeen.has(GS.modId);
-    const _showData=()=>{renderToolData();setStep(3);};
-    const _showBriefing=()=>{
-      if(_hasBriefing){
-        GS.briefingsSeen.add(GS.modId);
-        showAttackBriefing(_toolMod,_showData);
-      } else {
-        _showData();
-      }
-    };
-    showXPModal(10,'🎯 Correct Tool!',_showBriefing);
+    renderToolData();  // ALWAYS runs first — modals overlay after
+    setStep(3);
+    // XP modal → briefing overlay (data cards already loaded behind them)
+    showToolModals(GS.modId);
   } else {
     GS.badTools++;loseH('Wrong tool');addXP(-5);gcMod(GS.modId,'onToolWrong');/*vox*/;
     const hint=GS.badTools>=2?'<br><br><em>Hint: your email tells you what type of attack it is — which tool matches?</em>':'';
@@ -555,14 +506,6 @@ const MODULE_LEGENDS = {
 // ── RENDER TABLE (card layout) ─────────────────────────────────
 function renderToolData(){
   const id=GS.modId,sc=GS.scenario,cols=MODULE_COLUMNS[id];
-  if(!sc||!Array.isArray(sc)){
-    document.getElementById('toolData').innerHTML='<div class="terr">⚠ No scenario data — try refreshing your inbox.</div>';
-    console.error('renderToolData: scenario missing for',id,sc);return;
-  }
-  if(!cols){
-    document.getElementById('toolData').innerHTML='<div class="terr">⚠ Module not configured for this tool.</div>';
-    console.error('renderToolData: columns missing for',id);return;
-  }
   // Legend strip at top
   const legend=MODULE_LEGENDS[id]||'';
   let html=legend?`<div class="legend-strip">${esc(legend)}</div>`:'';
@@ -604,8 +547,7 @@ function renderToolData(){
   updBar();
 }
 
-function cardClicked(idx){
-  startStuckTimer();
+function cardClicked(idx){startStuckTimer();
   const item=GS.scenario&&GS.scenario[idx];
   if(!item)return;
   if(GS.modId==='ddos'&&item.graphData&&item.avgHitsMin){
@@ -613,8 +555,7 @@ function cardClicked(idx){
   }
 }
 
-function doAction(rowIdx,actId){
-  clearStuckTimer();GS.stuckCount=0;
+function doAction(rowIdx,actId){clearStuckTimer();GS.stuckCount=0;
   const item=GS.scenario[rowIdx];
   if(!item||item.handled){toast('Already handled!','warn');return;}
   item.handled=true;
@@ -913,10 +854,39 @@ function resizeMapCanvas(cv) {
 function drawNeonMap(cv, trail, currentHop) {
   try {
     const ctx = cv.getContext('2d');
-    const w = cv.width || 680, h = cv.height || 160;
+    const w = cv.width || 680, h = cv.height || 240;
 
-    // Canvas is transparent — SVG behind it draws background, grid, continents
-    ctx.clearRect(0, 0, w, h);
+    // Background
+    ctx.fillStyle = '#010d03';
+    ctx.fillRect(0, 0, w, h);
+
+    // CRT scan lines
+    for (let y = 0; y < h; y += 3) {
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(0, y, w, 1);
+    }
+
+    // Grid
+    ctx.strokeStyle = 'rgba(0,255,65,0.08)';
+    ctx.lineWidth = 0.5;
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const p = mapProj(lat, 0, w, h);
+      ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(w, p.y); ctx.stroke();
+    }
+    for (let lon = -150; lon <= 180; lon += 30) {
+      const p = mapProj(0, lon, w, h);
+      ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, h); ctx.stroke();
+    }
+
+    // City reference dots — geographic anchors
+    if (typeof CITIES !== 'undefined') {
+      CITIES.forEach(c => {
+        const p = mapProj(c.lat, c.lon, w, h);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,255,65,0.25)';
+        ctx.fill();
+      });
+    }
 
     // Trail line between hops
     if (trail && trail.length > 1) {
@@ -1159,7 +1129,7 @@ function closeIPTrace(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.body.classList.remove('alert-mode');
   GS.active=false;setSim('READY');setStep(0);clearGlows();
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   schedAutoAdvance(12000);
 }
 
@@ -1354,7 +1324,7 @@ function closePlenary(){
   const savedId=GS.debriefModId;
   document.getElementById('plenaryModal').classList.remove('open');
   if(savedId){gcMod(savedId,'scenarioComplete',300);}
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   GS.debriefModId=null;
   if(GS.round>=GS.totalRounds&&!GS.queue.length){setTimeout(showEndgame,2000);}
   else{schedAutoAdvance(18000);}
@@ -1372,8 +1342,7 @@ function resetAll(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.getElementById('plenaryModal').classList.remove('open');
   document.body.classList.remove('alert-mode');
-  GS.briefingsSeen=new Set();
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingsSeen:new Set(),stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
+  GS.briefingsSeen=new Set();GS.stuckCount=0;clearStuckTimer();Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
   document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
@@ -1385,7 +1354,7 @@ function resetAll(){
   document.getElementById('chatMsgs').innerHTML='';
   setSim('READY');setStep(0);
   // Re-pulse the refresh button to guide child
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
+  const br=document.getElementById('btnRefresh');br.disabled=false;br.style.opacity='';br.style.cursor='';br.textContent='⟳ CHECK FOR NEW EMAILS';br.classList.add('pulse-glow');
   gcMsg('zara', pick(GENERAL_GROUP_CHAT.welcome[0].msgs),600);
   gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
 }
