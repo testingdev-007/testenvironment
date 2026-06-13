@@ -95,17 +95,21 @@ function confirmReset(){
 
 // ── ATTACK BRIEFING — shown after tool select, before data cards ─
 function showAttackBriefing(mod, onClose){
-  const b=mod.briefing;
-  if(!b){onClose();return;}
-  const el=document.getElementById('attackBriefing');
-  if(!el){onClose();return;}  // graceful fallback if modal missing from HTML
-  document.getElementById('briefTitle').textContent=b.title;
-  document.getElementById('briefTagline').textContent=b.tagline;
-  document.getElementById('briefSummary').textContent=b.summary;
-  document.getElementById('briefWatch').textContent=b.watchFor;
-  document.getElementById('briefReal').textContent=b.realWorld;
-  el.style.display='flex';
-  document.getElementById('briefClose').onclick=()=>{el.style.display='none';onClose();};
+  try{
+    const b=mod.briefing;
+    if(!b){onClose();return;}
+    const el=document.getElementById('attackBriefing');
+    if(!el){onClose();return;}
+    const ids=['briefTitle','briefTagline','briefSummary','briefWatch','briefReal','briefClose'];
+    if(ids.some(id=>!document.getElementById(id))){onClose();return;}
+    document.getElementById('briefTitle').textContent=b.title||'';
+    document.getElementById('briefTagline').textContent=b.tagline||'';
+    document.getElementById('briefSummary').textContent=b.summary||'';
+    document.getElementById('briefWatch').textContent=b.watchFor||'';
+    document.getElementById('briefReal').textContent=b.realWorld||'';
+    el.style.display='flex';
+    document.getElementById('briefClose').onclick=()=>{el.style.display='none';onClose();};
+  }catch(e){console.warn('Briefing error:',e);if(onClose)onClose();}
 }
 
 function showXPPopup(amount, label){
@@ -498,7 +502,7 @@ function loadTool(){
     /*vox*/;
     GS.scenarioRagDone=true;
     const _bm=MODULES[GS.modId];
-    if(_bm&&_bm.briefing&&!GS.briefingSeen){GS.briefingSeen=true;showAttackBriefing(_bm,()=>{renderToolData();setStep(3);});}else{renderToolData();setStep(3);}
+    if(_bm&&_bm.briefing&&!GS.briefingsSeen.has(GS.modId)){GS.briefingsSeen.add(GS.modId);showAttackBriefing(_bm,()=>{renderToolData();setStep(3);});}else{renderToolData();setStep(3);}
     SFX.correct();
   } else {
     GS.badTools++;loseH('Wrong tool');addXP(-5);gcMod(GS.modId,'onToolWrong');/*vox*/;
@@ -520,6 +524,7 @@ const MODULE_LEGENDS = {
 // ── RENDER TABLE (card layout) ─────────────────────────────────
 function renderToolData(){
   const id=GS.modId,sc=GS.scenario,cols=MODULE_COLUMNS[id];
+  if(!sc||!Array.isArray(sc)||!cols){console.warn('renderToolData: missing data for',id);return;}
   // Legend strip at top
   const legend=MODULE_LEGENDS[id]||'';
   let html=legend?`<div class="legend-strip">${esc(legend)}</div>`:'';
@@ -1329,7 +1334,8 @@ function resetAll(){
   document.getElementById('ipOverlay').classList.remove('open');
   document.getElementById('plenaryModal').classList.remove('open');
   document.body.classList.remove('alert-mode');
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingSeen:false,stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
+  GS.briefingsSeen=new Set();
+  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingsSeen:new Set(),stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
   document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
