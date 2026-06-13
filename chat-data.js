@@ -33,7 +33,7 @@ const MODULE_GROUP_CHAT = {
   ddos: {
     onLoad_1:[
       { persona:'marcus', msgs:["Our website's getting SLAMMED with traffic 📈 Could be a DDoS!","Traffic spike alert! Something's flooding our servers.","Whoa — way too many requests hitting us at once. Not normal.","Someone might be sending fake traffic to crash our site. Check it!"] },
-      { persona:'zara',   msgs:["Uh oh — traffic is going mental right now 😬 Could be an attack!","A DDoS is like a mob of bots all hammering our door at once. Let's check which services are getting hit.","Heads up — unusual traffic levels! Some of these might be fine though, so look carefully."] },
+      { persona:'zara',   msgs:["Uh oh — traffic is spiking really badly right now 😬 Could be an attack!","A DDoS is like a mob of bots all hammering our door at once. Let's check which services are getting hit.","Heads up — unusual traffic levels! Some of these might be fine though, so look carefully."] },
       { persona:'priya',  msgs:["DDoS stands for Distributed Denial of Service — basically flooding a server until it crashes.","Think of a DDoS like a prank where thousands of people call the same phone number at once. The line jams.","Some high traffic IS normal — like if we just launched something new. You have to compare it to the average."] },
     ],
     onLoad_2:[
