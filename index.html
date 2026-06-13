@@ -698,11 +698,8 @@ html,body{ height:var(--app-h); }
 
 
 /* ── XP POPUP ANIMATION ─────────────────────────── */
-.xp-pop{position:fixed;left:50%;top:50%;transform:translate(-50%,0);
-        z-index:500;pointer-events:none;text-align:center;opacity:0;}
-.xp-pop-amt{font-family:'Orbitron',monospace;font-size:42px;font-weight:900;
-            color:#00ff41;text-shadow:0 0 30px #00ff41,0 0 60px #00ff41;
-            animation:xpPulse .4s ease;}
+.xp-pop{position:fixed;left:50%;top:45%;z-index:9999;pointer-events:none;text-align:center;opacity:0;transform:translate(-50%,0);}
+.xp-pop-amt{font-family:'Orbitron',monospace;font-size:56px;font-weight:900;color:#00ff41;text-shadow:0 0 40px #00ff41,0 0 80px #00ff41,0 0 120px rgba(0,255,65,.4);animation:xpPulse .35s cubic-bezier(.17,.67,.3,1.4);}
 .xp-pop-lbl{font-family:'Share Tech Mono',monospace;font-size:13px;
             color:rgba(0,255,65,.7);letter-spacing:.15em;margin-top:4px;}
 @keyframes xpPulse{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
@@ -727,6 +724,12 @@ html,body{ height:var(--app-h); }
 .brief-watch{color:#ffe082;font-size:12px;}
 .brief-real{color:#b0d0ff;font-size:12px;font-style:italic;}
 .brief-btn{width:100%;padding:14px;margin-top:18px;font-size:14px;}
+
+
+/* ── IP MAP WRAPPER — aspect ratio locks canvas to SVG ─── */
+#ipMapWrap{aspect-ratio:2/1;max-height:220px;}
+#ipMapWrap svg,#ipMapWrap canvas{position:absolute;inset:0;width:100%;height:100%;}
+#ipMapCanvas{background:transparent !important;}
 
 </style>
 </head>
@@ -767,7 +770,7 @@ html,body{ height:var(--app-h); }
   <!-- LEFT: refresh + action bar + inbox + chat -->
   <div id="lc">
     <div id="refreshRow">
-      <button id="btnRefresh" onclick="refreshInbox()" disabled style="opacity:0.5;cursor:not-allowed;">⟳ LOADING…</button>
+      <button id="btnRefresh" onclick="refreshInbox()">⟳ CHECK FOR NEW EMAILS</button>
     </div>
     <!-- Open / Report buttons — always visible above inbox -->
     <div class="eab">
@@ -927,8 +930,8 @@ html,body{ height:var(--app-h); }
         <div class="ip-city-label" id="ipCurrentCity">Waiting for trace…</div>
         <div class="ip-ip-display" id="ipCurrentIP">—</div>
       </div>
-      <div style="position:relative;width:100%;height:160px;border-radius:4px;overflow:hidden;">
-      <svg id="ipMapSVG" viewBox="0 0 720 360" preserveAspectRatio="xMidYMid meet"
+      <div id="ipMapWrap" style="position:relative;width:100%;border-radius:4px;overflow:hidden;">
+      <svg id="ipMapSVG" viewBox="0 0 720 360" preserveAspectRatio="none"
   xmlns="http://www.w3.org/2000/svg"
   style="position:absolute;inset:0;width:100%;height:100%;display:block;">
   <defs>
@@ -987,7 +990,7 @@ html,body{ height:var(--app-h); }
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v12.js -->
+<!-- All file versions managed in loader_2026-06-10_v13.js -->
 <script src="loader.js"></script>
 
 
