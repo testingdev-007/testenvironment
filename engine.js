@@ -530,19 +530,21 @@ function loadTool(){
     // STEP 1: Render data cards IMMEDIATELY. Nothing can stop this.
     renderToolData();
     setStep(3);
-    // STEP 2: Award XP (just updates the counter).
+    // STEP 2: Award XP + tell the team via chat (no modal).
     addXP(10);
+    gcMsg('marcus','✓ Right tool! +10 XP. Now check each item below 👇',200);
     gcMod(GS.modId,'onToolCorrect');
     try{SFX.correct();}catch(e){}
-    // STEP 3: Show modals as pure overlays. Data is already visible behind them.
+    // STEP 3: Post the case briefing to chat.
     try{
-      showXPModal(10,'🎯 Correct Tool!',function(){
-        var m=MODULES[GS.modId];
-        if(m&&m.briefing&&GS.briefingsSeen&&!GS.briefingsSeen.has(GS.modId)){
-          GS.briefingsSeen.add(GS.modId);
-          showAttackBriefing(m);
-        }
-      });
+      var m=MODULES[GS.modId];
+      if(m&&m.briefing&&GS.briefingsSeen&&!GS.briefingsSeen.has(GS.modId)){
+        GS.briefingsSeen.add(GS.modId);
+        var b=m.briefing;
+        gcMsg('priya','📋 NEW CASE: '+b.title+' — '+b.tagline,300);
+        gcMsg('zara',b.summary,1400);
+        gcMsg('marcus','🔍 Watch for: '+b.watchFor,3000);
+      }
     }catch(e){console.warn('Modal error (data still loaded):',e);}
   } else {
     GS.badTools++;loseH('Wrong tool');addXP(-5);gcMod(GS.modId,'onToolWrong');/*vox*/;
@@ -628,8 +630,8 @@ function doAction(rowIdx,actId){
   item.handled=true;
   item.userAction=actId;
   const ao=(actId===item.actionAnswer);
-  if(ao){try{SFX.correct();}catch(e){}addXP(15);gcMod(GS.modId,'onActionCorrect',200);}
-  else{loseH('Wrong action');addXP(-5);/*vox*/gcMod(GS.modId,'onActionWrong',200);}
+  if(ao){try{SFX.correct();}catch(e){}addXP(15);gcMsg('marcus','✓ Nice one! +15 XP 🎯',150);gcMod(GS.modId,'onActionCorrect',600);}
+  else{loseH('Wrong action');addXP(-5);gcMsg('zara','Not quite — have another think on the next one! (-5 XP)',150);gcMod(GS.modId,'onActionWrong',600);}
   // DDoS graph
   // graph removed
   renderToolData();
@@ -920,64 +922,71 @@ function resizeMapCanvas(cv) {
   if (cv.width !== 720 || cv.height !== 360) { cv.width = 720; cv.height = 360; }
 }
 
-function drawNeonMap(cv, trail, currentHop) {
-  try {
-    const ctx = cv.getContext('2d');
-    const w = cv.width || 680, h = cv.height || 160;
-
-    // Canvas is transparent — SVG behind it draws background, grid, continents
-    ctx.clearRect(0, 0, w, h);
-
-    // Trail line between hops
-    if (trail && trail.length > 1) {
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = 'rgba(255,100,0,0.5)';
-      ctx.lineWidth = 1.5;
+function drawNeonMap(cv, trail, currentHop){
+  try{
+    var ctx=cv.getContext('2d');
+    var w=cv.width||720, h=cv.height||360;
+    // Everything drawn on ONE canvas — continents AND dots share the same
+    // coordinate system, so they can never be out of alignment.
+    ctx.fillStyle='#010d03'; ctx.fillRect(0,0,w,h);
+    // Simple recognisable continent blobs [lon,lat] → canvas
+    var P=function(lat,lon){return {x:((lon+180)/360)*w, y:((90-lat)/180)*h};};
+    var blobs=[
+      // North America
+      [[72,-160],[60,-165],[48,-125],[30,-115],[16,-92],[9,-80],[25,-80],[45,-65],[60,-65],[72,-95]],
+      // South America
+      [[10,-78],[5,-50],[-10,-37],[-23,-43],[-40,-62],[-54,-68],[-40,-73],[-18,-70],[0,-80]],
+      // Europe
+      [[38,-9],[44,0],[40,18],[38,28],[55,28],[70,20],[60,5],[44,-9]],
+      // Africa
+      [[16,-18],[5,5],[12,42],[12,51],[-12,40],[-35,20],[-35,12],[-5,-15],[16,-18]],
+      // Asia
+      [[70,30],[72,90],[68,140],[20,120],[2,104],[8,78],[22,60],[42,38],[60,30]],
+      // Australia
+      [[-12,130],[-20,150],[-38,148],[-35,115],[-22,114]],
+      // UK
+      [[50,-6],[58,-2],[58,-6],[52,-8]],
+      // Greenland
+      [[77,-50],[82,-30],[72,-22],[68,-45]],
+      // Japan
+      [[34,135],[42,141],[36,138]],
+    ];
+    ctx.lineWidth=1.4; ctx.strokeStyle='#00cc33'; ctx.fillStyle='rgba(0,42,8,0.85)';
+    ctx.shadowColor='#00ff41'; ctx.shadowBlur=5;
+    blobs.forEach(function(poly){
       ctx.beginPath();
-      trail.forEach((hop, i) => {
-        const p = mapProj(hop.lat, hop.lon, w, h);
-        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-      });
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Visited hop dots
-      for (let i = 0; i < trail.length - 1; i++) {
-        const p = mapProj(trail[i].lat, trail[i].lon, w, h);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = '#ff6600';
-        ctx.shadowColor = '#ff4400'; ctx.shadowBlur = 10;
-        ctx.fill(); ctx.shadowBlur = 0;
+      poly.forEach(function(pt,idx){var p=P(pt[0],pt[1]); idx===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);});
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+    ctx.shadowBlur=0;
+    // Trail
+    if(trail&&trail.length>1){
+      ctx.setLineDash([6,4]); ctx.strokeStyle='rgba(255,100,0,0.6)'; ctx.lineWidth=1.6;
+      ctx.beginPath();
+      trail.forEach(function(hop,idx){var p=P(hop.lat,hop.lon); idx===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);});
+      ctx.stroke(); ctx.setLineDash([]);
+      for(var k=0;k<trail.length-1;k++){
+        var pv=P(trail[k].lat,trail[k].lon);
+        ctx.beginPath(); ctx.arc(pv.x,pv.y,5,0,Math.PI*2);
+        ctx.fillStyle='#ff6600'; ctx.shadowColor='#ff4400'; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
       }
     }
-
-    // Active hop — pulsing rings
-    if (currentHop) {
-      const p = mapProj(currentHop.lat, currentHop.lon, w, h);
-      const t = Date.now() / 500;
-      for (let ring = 0; ring < 3; ring++) {
-        const r = 10 + ring * 12 + Math.sin(t + ring * 1.2) * 4;
-        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,50,0,${0.4 - ring * 0.12})`;
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 8;
-        ctx.stroke(); ctx.shadowBlur = 0;
+    // Active hop with pulsing rings
+    if(currentHop){
+      var p=P(currentHop.lat,currentHop.lon);
+      var t=Date.now()/500;
+      for(var r=0;r<3;r++){
+        var rad=10+r*12+Math.sin(t+r*1.2)*4;
+        ctx.beginPath(); ctx.arc(p.x,p.y,rad,0,Math.PI*2);
+        ctx.strokeStyle='rgba(255,50,0,'+(0.4-r*0.12)+')'; ctx.lineWidth=1.5;
+        ctx.shadowColor='#ff3300'; ctx.shadowBlur=8; ctx.stroke();
       }
-      // Core dot
-      ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-      ctx.fillStyle = '#ff3300';
-      ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 24;
-      ctx.fill(); ctx.shadowBlur = 0;
-      // City label
-      ctx.font = 'bold 10px "Share Tech Mono",monospace';
-      ctx.fillStyle = 'rgba(255,210,190,0.9)';
-      ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 5;
-      ctx.fillText(currentHop.city, p.x + 11, p.y + 4);
-      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(p.x,p.y,7,0,Math.PI*2);
+      ctx.fillStyle='#ff3300'; ctx.shadowColor='#ff3300'; ctx.shadowBlur=24; ctx.fill(); ctx.shadowBlur=0;
+      ctx.font='bold 11px monospace'; ctx.fillStyle='rgba(255,210,190,0.95)';
+      ctx.fillText(currentHop.city, p.x+11, p.y+4);
     }
-  } catch(e) {
-    console.warn('Map draw error:', e);
-  }
+  }catch(e){console.warn('Map draw error:',e);}
 }
 
 
@@ -1132,13 +1141,27 @@ function endTrace(won,reason){
 
 // ── RETRY MODAL — one second chance per trace ──────────────────
 function showIPRetryModal(reason){
-  document.getElementById('ipRetryReason').textContent=reason;
-  document.getElementById('ipRetryModal').style.display='flex';
+  // Use the unified game modal — no dependency on a separate retry modal element
+  var html='<div class="gm-flash" style="color:var(--red)">&#9888; TRACE INTERRUPTED</div>'
+          +'<div class="gm-title" style="margin-bottom:18px">'+esc(reason)+'</div>'
+          +'<div style="display:flex;gap:10px;">'
+          +'<button class="btn btn-g btn-orb gm-ok" id="gameModalOk" style="flex:1">&#128260; TRY AGAIN (45s)</button>'
+          +'<button class="btn btn-sm btn-d" id="ipGiveUp" style="flex:1">GIVE UP</button>'
+          +'</div>';
+  showGameModal(html, function(){ retryIPTrace(); });
+  // Wire give-up separately
+  setTimeout(function(){
+    var g=document.getElementById('ipGiveUp');
+    if(g)g.onclick=function(){
+      var el=gameModalEl(); if(el)el.style.display='none';
+      var body=document.getElementById('gameModalBody'); if(body)body.innerHTML='';
+      declineRetryIPTrace();
+    };
+  },0);
 }
 
 function retryIPTrace(){
-  document.getElementById('ipRetryModal').classList.remove('open');
-  const s=GS.ip;
+  const s=GS.ip; if(!s)return;
   s.usedRetry=true; s.done=false;
   // Restart with same hop count but fresh hops and 45 seconds
   const hopCount=s.hops.length;
@@ -1157,8 +1180,7 @@ function retryIPTrace(){
 }
 
 function declineRetryIPTrace(){
-  document.getElementById('ipRetryModal').style.display='none';
-  const s=GS.ip;
+  const s=GS.ip; if(!s)return;
   s.usedRetry=true;
   endTrace(false,'Trace abandoned.');
 }
