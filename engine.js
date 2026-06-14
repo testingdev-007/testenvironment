@@ -45,6 +45,7 @@ const GS = {
   phishReported:false, ipWon:false, livesLost:0,
   selectedEmailId:null,
   emailOpened:false, // set true when email content shown
+  briefingsSeen:new Set(), stuckCount:0,
   // Per-session escalation control
   sessionFlags:{allGreenUsed:false, highEscalationUsed:false, lastWasLow:false},
 };
@@ -176,6 +177,7 @@ function clearStuckTimer(){
 }
 
 function _boot(){
+  if(!GS.briefingsSeen)GS.briefingsSeen=new Set();
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
   document.getElementById('btnRefresh').classList.add('pulse-glow');
@@ -221,7 +223,7 @@ function addXP(n){
 }
 function rRound(){document.getElementById('roundNum').textContent=GS.round+'/'+GS.totalRounds;}
 function setSim(t){document.getElementById('simStatus').textContent=t;}
-function toast(msg,type='ok'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+type;clearTimeout(el._t);el._t=setTimeout(()=>{el.className='';},3000);}
+function toast(msg,type='ok'){/* top-right notifications removed — hints flow through group chat */ }
 
 function setStep(n){
   for(let i=1;i<=5;i++){const el=document.getElementById('st'+i);if(!el)continue;el.classList.remove('on','done');if(i===n)el.classList.add('on');else if(i<n)el.classList.add('done');}
@@ -275,7 +277,7 @@ function idleLoop(){
 
 // ── DIFFICULTY ────────────────────────────────────────────────
 function setDiff(v){
-  if(GS.active){toast('Finish your current mission first!','warn');return;}
+  if(GS.active){gcMsg('priya','Finish the current case before checking for new emails.');return;}
   GS.maxH=GS.hearts=parseInt(v);rHearts();
 }
 
@@ -292,7 +294,7 @@ function applyAdmin(){
 function refreshInbox(){
   try{SFX.newMail();}catch(e){}/*vox*/clearTimeout(GS.autoTimer);
   document.getElementById('btnRefresh').classList.remove('pulse-glow');
-  if(GS.active){toast('Finish your current mission first!','warn');return;}
+  if(GS.active){gcMsg('priya','Finish the current case before checking for new emails.');return;}
   // Reset email/results pane for fresh mission
   document.getElementById('welcomeMsg').style.display='block';
   document.getElementById('emailView').style.display='none';
@@ -519,9 +521,9 @@ function doEmail(id,action,evt){
 
 // ── TOOL ──────────────────────────────────────────────────────
 function loadTool(){
-  if(!GS.emailOpened){toast('Open your email first! 👆','warn');return;}
+  if(!GS.emailOpened){gcMsg('zara','Open the email first so we know what we\'re dealing with! 👆');return;}
   const v=document.getElementById('toolSel').value;
-  if(!v){toast('Pick a tool first!','warn');return;}
+  if(!v){gcMsg('marcus','Pick an investigation tool from the dropdown first! 🔧');return;}
   if(!GS.active){toast('No scenario active','warn');return;}
   if(GS.toolOk){toast('Tool already loaded','warn');return;}
   if(v===GS.correctTool){
@@ -580,7 +582,7 @@ function renderToolData(){
   sc.forEach((item,i)=>{
     const done=item.handled;
     const borderCol=done?(item.ragAnswer==='R'?'var(--red)':item.ragAnswer==='A'?'var(--amb)':'var(--g)'):'rgba(0,255,65,0.18)';
-    html+=`<div class="dcard${done?' done':''}" id="dr${i}" style="border-left:4px solid ${borderCol}" onclick="cardClicked(${i})">`;
+    html+=`<div class="dcard${done?' done':''}" id="dr${i}" style="border-left:4px solid ${borderCol}" >`;
     html+=`<div class="dcard-head">`;
     html+=`<span class="dcard-name">${esc(item.name)}</span>`;
     if(done){const ok=item.userAction===item.actionAnswer;html+=`<span class="sbadge ${ok?'sbok':'sberr'}">${ok?'✓':'✗'}</span>`;}
@@ -601,7 +603,7 @@ function renderToolData(){
       (MODULE_ACTIONS[id]||[]).forEach(a=>{
         const cls=a.id==='block'||a.id==='quarantine'||a.id==='isolate'||a.id==='lockAccount'||a.id==='report'?'btn-r':
                   a.id==='ignore'?'btn-d':'btn-a';
-        html+=`<button class="btn btn-sm ${cls}" onclick="event.stopPropagation();doAction(${i},'${a.id}')">${a.label}</button>`;
+        html+=`<button class="btn btn-sm ${cls}" onclick="doAction(${i},'${a.id}')">${a.label}</button>`;
       });
       html+=`</div>`;
     } else if(done){
@@ -622,14 +624,13 @@ function cardClicked(idx){
 }
 
 function doAction(rowIdx,actId){
-  if(window.event){try{window.event.stopPropagation();}catch(e){}}
   clearStuckTimer();GS.stuckCount=0;
   const item=GS.scenario[rowIdx];
   if(!item||item.handled){toast('Already handled!','warn');return;}
   item.handled=true;
   item.userAction=actId;
   const ao=(actId===item.actionAnswer);
-  if(ao){try{SFX.correct();}catch(e){}addXP(15);showXPPopup(15,'CORRECT ✓');gcMod(GS.modId,'onActionCorrect',200);}
+  if(ao){try{SFX.correct();}catch(e){}addXP(15);gcMod(GS.modId,'onActionCorrect',200);}
   else{loseH('Wrong action');addXP(-5);/*vox*/gcMod(GS.modId,'onActionWrong',200);}
   // DDoS graph
   // graph removed
