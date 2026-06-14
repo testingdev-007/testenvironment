@@ -104,58 +104,11 @@ function confirmReset(){
 // ── XP POPUP — centre screen, scrolling number animation ─────
 
 // ── ATTACK BRIEFING — shown after tool select, before data cards ─
-function showAttackBriefing(mod){
-  try{
-    var b=mod.briefing;if(!b)return;
-    var el=document.getElementById('attackBriefing');if(!el)return;
-    var need=['briefTitle','briefTagline','briefSummary','briefWatch','briefReal','briefClose'];
-    for(var i=0;i<need.length;i++){if(!document.getElementById(need[i]))return;}
-    document.getElementById('briefTitle').textContent=b.title||'';
-    document.getElementById('briefTagline').textContent=b.tagline||'';
-    document.getElementById('briefSummary').textContent=b.summary||'';
-    document.getElementById('briefWatch').textContent=b.watchFor||'';
-    document.getElementById('briefReal').textContent=b.realWorld||'';
-    el.style.display='flex';
-    document.getElementById('briefClose').onclick=function(){el.style.display='none';};
-  }catch(e){console.warn('Briefing error:',e);}
-}
 
-function showXPModal(amount,label,onOk){
-  try{
-    var el=document.getElementById('xpModal');
-    if(!el){if(onOk)onOk();return;}
-    var a=document.getElementById('xpModalAmt'),l=document.getElementById('xpModalLbl'),b=document.getElementById('xpModalOk');
-    if(!a||!l||!b){if(onOk)onOk();return;}
-    a.textContent='+'+amount;
-    l.textContent=label||'XP Earned!';
-    el.style.display='flex';
-    b.onclick=function(){el.style.display='none';if(onOk)onOk();};
-  }catch(e){console.warn('XP modal error:',e);if(onOk)onOk();}
-}
 
-function showXPPopup(amount, label){
-  const el=document.createElement('div');
-  el.className='xp-pop';
-  el.innerHTML=`<div class="xp-pop-amt">+${amount}</div><div class="xp-pop-lbl">${label||'XP'}</div>`;
-  document.body.appendChild(el);
-  // Animate: fade in, drift up, fade out
-  let opacity=0, y=0, raf;
-  const rise=()=>{
-    opacity=Math.min(1,opacity+0.08);
-    y=Math.max(-80,y-1.4);
-    el.style.opacity=opacity;
-    el.style.transform=`translate(-50%,${y}px)`;
-    if(y>-80||opacity<1)raf=requestAnimationFrame(rise);
-    else{
-      setTimeout(()=>{
-        let op=1;
-        const fade=()=>{op-=0.06;el.style.opacity=op;if(op>0)requestAnimationFrame(fade);else el.remove();};
-        requestAnimationFrame(fade);
-      },900);
-    }
-  };
-  requestAnimationFrame(rise);
-}
+
+
+
 
 
 // ── STUCK TIMER — fires context-sensitive hints if card not answered ──
@@ -174,6 +127,51 @@ function startStuckTimer(){
 }
 function clearStuckTimer(){
   if(GS.stuckTimer){clearTimeout(GS.stuckTimer);GS.stuckTimer=null;}
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// UNIFIED MODAL SYSTEM — one container, bulletproof show/hide
+// ══════════════════════════════════════════════════════════════
+function gameModalEl(){ return document.getElementById('gameModal'); }
+
+function showGameModal(innerHTML, onClose){
+  var el=gameModalEl();
+  if(!el){ if(onClose)onClose(); return; }
+  var body=document.getElementById('gameModalBody');
+  if(!body){ if(onClose)onClose(); return; }
+  body.innerHTML=innerHTML;
+  el.style.display='flex';
+  // The single OK/continue button inside the modal closes it
+  var ok=document.getElementById('gameModalOk');
+  if(ok){
+    ok.onclick=function(){
+      el.style.display='none';
+      body.innerHTML='';
+      if(onClose)onClose();
+    };
+  }
+}
+
+function showXPModal(amount,label,onClose){
+  var html='<div class="gm-xp-ring"><div class="gm-xp-amt">+'+amount+'</div><div class="gm-xp-unit">XP</div></div>'
+          +'<div class="gm-title">'+(label||'XP Earned!')+'</div>'
+          +'<button class="btn btn-g btn-orb gm-ok" id="gameModalOk">NEXT &rarr;</button>';
+  showGameModal(html, onClose);
+}
+
+function showAttackBriefing(mod){
+  try{
+    var b=mod&&mod.briefing; if(!b)return;
+    var html='<div class="gm-flash">&#9889; NEW ATTACK TYPE &#9889;</div>'
+            +'<div class="gm-brief-title">'+esc(b.title||'')+'</div>'
+            +'<div class="gm-brief-tag">'+esc(b.tagline||'')+'</div>'
+            +'<div class="gm-brief-sec"><div class="gm-brief-lbl">WHAT IS IT?</div><div class="gm-brief-txt">'+esc(b.summary||'')+'</div></div>'
+            +'<div class="gm-brief-sec"><div class="gm-brief-lbl">&#128269; WHAT TO WATCH FOR</div><div class="gm-brief-txt" style="color:#ffe082">'+esc(b.watchFor||'')+'</div></div>'
+            +'<div class="gm-brief-sec"><div class="gm-brief-lbl">&#127757; REAL WORLD CASE</div><div class="gm-brief-txt" style="color:#b0d0ff;font-style:italic">'+esc(b.realWorld||'')+'</div></div>'
+            +'<button class="btn btn-g btn-orb gm-ok" id="gameModalOk">&#128373;&#65039; START INVESTIGATION &rarr;</button>';
+    showGameModal(html, null);
+  }catch(e){console.warn('Briefing error:',e);}
 }
 
 function _boot(){
@@ -916,8 +914,10 @@ function mapProj(lat, lon, w, h) {
 }
 
 function resizeMapCanvas(cv) {
-  const w = cv.clientWidth || 680, h = cv.clientHeight || 240;
-  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  // Lock to the SVG viewBox (720x360) so canvas dots align exactly with the
+  // SVG continents. The canvas is stretched by CSS to fill the wrapper, exactly
+  // like the SVG (preserveAspectRatio=none), so both share one coordinate space.
+  if (cv.width !== 720 || cv.height !== 360) { cv.width = 720; cv.height = 360; }
 }
 
 function drawNeonMap(cv, trail, currentHop) {
