@@ -727,8 +727,8 @@ html,body{ height:var(--app-h); }
 
 
 /* ── IP MAP WRAPPER — aspect ratio locks canvas to SVG ─── */
-#ipMapWrap{aspect-ratio:2/1;max-height:220px;}
-#ipMapWrap svg,#ipMapWrap canvas{position:absolute;inset:0;width:100%;height:100%;}
+#ipMapWrap{position:relative;width:100%;aspect-ratio:720/360;max-height:240px;overflow:hidden;}
+#ipMapWrap svg,#ipMapWrap canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
 #ipMapCanvas{background:transparent !important;}
 
 
@@ -749,6 +749,26 @@ html,body{ height:var(--app-h); }
               margin-bottom:20px;letter-spacing:.05em;}
 .xp-modal-ok{width:100%;padding:12px;font-size:13px;letter-spacing:.1em;}
 @keyframes xpRingPulse{0%{transform:scale(.7);opacity:0}70%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+
+
+/* ── UNIFIED GAME MODAL ───────────────────────────────────── */
+.gm-box{background:#040f04;border:2px solid var(--g);box-shadow:0 0 70px rgba(0,255,65,.5);
+        border-radius:10px;padding:30px 36px;width:min(580px,92vw);max-height:88vh;
+        overflow-y:auto;text-align:center;animation:gmPop .4s cubic-bezier(.17,.67,.3,1.4);}
+@keyframes gmPop{0%{transform:scale(.75);opacity:0}100%{transform:scale(1);opacity:1}}
+.gm-xp-ring{width:120px;height:120px;border-radius:50%;margin:0 auto 14px;border:3px solid var(--g);
+            display:flex;flex-direction:column;justify-content:center;align-items:center;
+            box-shadow:0 0 40px rgba(0,255,65,.6),inset 0 0 26px rgba(0,255,65,.12);}
+.gm-xp-amt{font-family:'Orbitron',monospace;font-size:42px;font-weight:900;color:var(--g);text-shadow:0 0 26px var(--g);line-height:1;}
+.gm-xp-unit{font-family:'Share Tech Mono',monospace;font-size:12px;color:rgba(0,255,65,.6);letter-spacing:.2em;}
+.gm-title{font-family:'Orbitron',monospace;font-size:16px;color:#d8ffd8;margin-bottom:18px;}
+.gm-flash{font-family:'Orbitron',monospace;font-size:12px;color:var(--g);letter-spacing:.2em;animation:pulse .8s ease infinite;margin-bottom:12px;}
+.gm-brief-title{font-family:'Orbitron',monospace;font-size:21px;font-weight:900;color:var(--g);text-shadow:0 0 18px var(--g);margin-bottom:3px;}
+.gm-brief-tag{font-size:13px;color:rgba(0,255,65,.6);font-style:italic;margin-bottom:16px;}
+.gm-brief-sec{margin-bottom:12px;text-align:left;}
+.gm-brief-lbl{font-size:10px;color:rgba(0,255,65,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;}
+.gm-brief-txt{font-size:13px;color:#b8e8b8;line-height:1.6;}
+.gm-ok{width:100%;padding:13px;margin-top:18px;font-size:13px;letter-spacing:.08em;}
 
 </style>
 </head>
@@ -846,6 +866,12 @@ html,body{ height:var(--app-h); }
 </div><!-- /grid -->
 </div><!-- /app -->
 
+
+
+<!-- UNIFIED GAME MODAL (XP, briefing, etc) -->
+<div id="gameModal" style="display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.9);justify-content:center;align-items:center;">
+  <div class="gm-box" id="gameModalBody"></div>
+</div>
 
 <!-- WELCOME MODAL -->
 <div id="welcomeModal">
@@ -1009,57 +1035,12 @@ html,body{ height:var(--app-h); }
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v22.js -->
+<!-- All file versions managed in loader_2026-06-10_v23.js -->
 <script src="loader.js"></script>
 
 
 
-<!-- XP EARNED MODAL -->
-<div id="xpModal" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.88);justify-content:center;align-items:center;">
-  <div class="xp-modal-box">
-    <div class="xp-modal-ring">
-      <div class="xp-modal-amt" id="xpModalAmt">+10</div>
-      <div class="xp-modal-unit">XP</div>
-    </div>
-    <div class="xp-modal-lbl" id="xpModalLbl">Correct Tool!</div>
-    <button class="btn btn-g xp-modal-ok" id="xpModalOk">NEXT →</button>
-  </div>
-</div>
 
-<!-- ATTACK BRIEFING MODAL -->
-<div id="attackBriefing" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.9);justify-content:center;align-items:center;">
-  <div class="brief-box">
-    <div class="brief-flash">⚡ NEW ATTACK TYPE DETECTED ⚡</div>
-    <div class="brief-title" id="briefTitle">Attack Name</div>
-    <div class="brief-tagline" id="briefTagline">Tagline here</div>
-    <div class="brief-section">
-      <div class="brief-label">WHAT IS IT?</div>
-      <div class="brief-text" id="briefSummary"></div>
-    </div>
-    <div class="brief-section">
-      <div class="brief-label">🔍 WHAT TO WATCH FOR</div>
-      <div class="brief-text brief-watch" id="briefWatch"></div>
-    </div>
-    <div class="brief-section">
-      <div class="brief-label">🌍 REAL WORLD CASE</div>
-      <div class="brief-text brief-real" id="briefReal"></div>
-    </div>
-    <button class="btn btn-g btn-orb brief-btn" id="briefClose">🕵️ START INVESTIGATION →</button>
-  </div>
-</div>
-
-<!-- IP TRACE RETRY MODAL -->
-<div id="ipRetryModal" style="display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,.88);justify-content:center;align-items:center;">
-  <div style="background:var(--bp);border:2px solid var(--red);box-shadow:0 0 40px rgba(255,0,64,.4);border-radius:8px;padding:26px;max-width:440px;width:90%;text-align:center;">
-    <div style="font-family:'Orbitron',monospace;font-size:16px;color:var(--red);margin-bottom:12px;text-shadow:0 0 10px var(--red);">✗ WRONG IP!</div>
-    <div id="ipRetryReason" style="font-size:14px;color:rgba(0,255,65,.7);margin-bottom:18px;line-height:1.8;"></div>
-    <div style="font-size:15px;margin-bottom:18px;color:var(--g);">Do you want one more try? (45 seconds)</div>
-    <div style="display:flex;gap:10px;">
-      <button class="btn btn-g btn-orb" style="flex:1;padding:12px;" onclick="retryIPTrace()">▶ TRY AGAIN</button>
-      <button class="btn btn-r" style="flex:1;padding:12px;font-family:'Orbitron',monospace;font-size:11px;" onclick="declineRetryIPTrace()">✕ GIVE UP</button>
-    </div>
-  </div>
-</div>
 <!-- MOBILE BOTTOM NAV -->
 <nav id="bottomNav">
   <button class="bnav-btn on" data-col="lc" onclick="mobileTab('lc')">
