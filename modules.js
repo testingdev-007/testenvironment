@@ -813,8 +813,8 @@ MODULES.phishingModule = {
     ];
 
     // numPhish can be 0 (all genuine), 1, 2, or 3
-    const numPhish = pick([0, 1, 1, 2, 2, 3]);
-    const numReal  = Math.max(1, 5 - numPhish);  // always show at least 1 real
+    const numPhish = pick([1, 2, 2, 2, 3]);
+    const numReal  = 6 - numPhish;  // total always 6
     const reals    = shuffle(realSenders).slice(0, numReal);
     const phishs   = shuffle(phishSenders).slice(0, numPhish);
     const all      = shuffle([...reals, ...phishs]);
@@ -1013,6 +1013,9 @@ MODULES.socialEng = {
       {caller:'Sarah from IT Support (known staff member)',dept:'IT',req:'Logged a ticket to reset a user\'s password following the standard process',process:'Proper ticket number. Verified via internal system.',rag:'G',action:'ignore',note:'Standard IT process followed correctly.'},
       {caller:'New employee James via line manager',dept:'HR',req:'Access badge being processed — manager requested temporary visitor badge',process:'HR ticket raised. Manager confirmed by phone.',rag:'G',action:'ignore',note:'Correct process followed through proper channels.'},
       {caller:'IT department',dept:'IT',req:'Scheduled password reset reminder sent to all staff (it\'s policy every 90 days)',process:'Sent from it@company.com with a proper ticket reference.',rag:'G',action:'ignore',note:'Legitimate scheduled process.'},
+      {caller:'Priya from Finance (known staff)',dept:'Finance',req:'Asked IT to reset her own email password — she was locked out',process:'Called from her desk extension. IT verified her identity with security questions.',rag:'G',action:'ignore',note:'Verified identity through proper checks.'},
+      {caller:'Facilities team',dept:'Facilities',req:'Emailed staff that the fire alarm test is at 2pm Thursday',process:'Sent from facilities@company.com. No links, no requests for info.',rag:'G',action:'ignore',note:'Normal internal notice — asks for nothing.'},
+      {caller:'Cleaning supervisor (badged visitor)',dept:'External (approved)',req:'Signed in at reception for the regular evening clean',process:'On the pre-approved visitor list. Badge issued and logged.',rag:'A',action:'investigate',note:'Approved but always worth a quick check against the visitor list.'},
     ];
     const rp=buildRagProfile(escalationType,numEscalations);
     const reds=tickets.filter(t=>t.rag==='R');
@@ -1119,6 +1122,8 @@ MODULES.usbDrop = {
       {name:'CORP_BACKUP_DRIVE',type:'Company Backup Drive (labelled)',location:'IT server room',time:'02:00',auto:'No autorun',files:'backup files only',rag:'G',action:'ignore',note:'Scheduled backup in IT room using labelled company equipment — expected.'},
       {name:'IT_INSTALL_DRIVE',type:'IT Department USB (labelled, asset tagged)',location:'IT Support desk',time:'10:30',auto:'No autorun',files:'software_install.msi (verified hash)',rag:'G',action:'ignore',note:'Labelled IT asset with verified software. Normal IT operation.'},
       {name:'ENCRYPTED_CORP_USB',type:'Company encrypted USB (IronKey)',location:'Finance Director\'s PC',time:'09:15',auto:'No autorun',files:'quarterly_report.xlsx',rag:'G',action:'ignore',note:'Company-issued encrypted USB used by authorised staff during working hours.'},
+      {name:'IT_ASSET_4471',type:'Company USB (asset-tagged)',location:'Helpdesk PC',time:'10:48',auto:'No autorun',files:'driver_pack.zip (verified)',rag:'G',action:'ignore',note:'Tagged company asset used by IT during work hours.'},
+      {name:'PRESENTER_USB',type:'Company presentation USB (labelled)',location:'Meeting room PC',time:'13:30',auto:'No autorun',files:'slides.pptx',rag:'G',action:'ignore',note:'Labelled company device used for a scheduled meeting.'},
     ];
     const rp=buildRagProfile(escalationType,numEscalations);
     const reds=devices.filter(d=>d.rag==='R');
