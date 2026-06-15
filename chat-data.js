@@ -1,3 +1,8 @@
+/* ════════════════════════════════════════════════════════════
+   CYBERSHIELD ACADEMY
+   FILE: chat-data_2026-06-10_v5.js
+   ROLE: chat-data.js
+   ════════════════════════════════════════════════════════════ */
 /* ================================================================
    CHAT-DATA V2 — CyberShield Academy
    Expanded message pools, context-sensitive scaffolding,
@@ -11,7 +16,7 @@ var PERSONAS = {
 };
 
 // ── GENERAL ───────────────────────────────────────────────────
-const GENERAL_GROUP_CHAT = {
+var GENERAL_GROUP_CHAT = {
   welcome: [
     { persona:'zara',   msgs:["Hey! Ready to catch some hackers? 🕵️","Welcome, detective! Hit that green button when you're set 👇","Omg the new detective is HERE! We've been waiting!","Let's gooo! New recruit in the building! 🚨"] },
     { persona:'marcus', msgs:["Wagwan! You joining the cyber squad? Let's go! 💪","Big up the new detective! We need you on this team.","Safe! Another pair of eyes is exactly what we needed.","Yooo finally! We're always short-staffed. Welcome!"] },
@@ -49,7 +54,7 @@ const GENERAL_GROUP_CHAT = {
   ],
 };
 
-const GLOBAL_CHAT = {
+var GLOBAL_CHAT = {
 
   toolCorrect: [
     {persona:'marcus', msgs:["That's it! ✅","Right tool! Let's go 🎯","Locked in!","That's the one! 🙌","Yes! 💪","Nailed it!","Bingo!"]},
@@ -105,7 +110,7 @@ const GLOBAL_CHAT = {
 // onActionWrong (contextual hint for this module's data)
 
 // ── MODULE CHAT ────────────────────────────────────────────────
-const MODULE_GROUP_CHAT = {
+var MODULE_GROUP_CHAT = {
 
   // ════════════════════════════════════════════════════════════
   // DDoS
@@ -320,7 +325,7 @@ const MODULE_GROUP_CHAT = {
 };
 
 // ── PHISHING EXCEPTION CHAT ────────────────────────────────────
-const PHISHING_EXCEPTION_CHAT = {
+var PHISHING_EXCEPTION_CHAT = {
   onPhishingArrived:[
     { persona:'priya',  msgs:["Hold on — check that sender address before you do ANYTHING 👀","New email in. Look at the sender address very carefully before you click open.","Wait — does that sender address look exactly right? Check every character!"] },
     { persona:'zara',   msgs:["Ooh careful! Look at who sent that before you open it 🔍","Stop — look at that email address. Something might be off!","Check the FROM address first. Every. Single. Letter."] },
@@ -339,7 +344,7 @@ const PHISHING_EXCEPTION_CHAT = {
 };
 
 // ── IP TRACE CHAT ──────────────────────────────────────────────
-const IP_TRACE_CHAT = {
+var IP_TRACE_CHAT = {
   onStart:[
     { persona:'marcus', msgs:["🚨 RED ALERT! Someone is hacking in RIGHT NOW — track them!","LIVE INTRUDER!! Chase them across the map! 🌍","Oh no — they're IN! Quick, trace where they're connecting from!","LIVE HACK!! Let's gooo — pick the right IP at each location!"] },
     { persona:'zara',   msgs:["Someone's hacking us live! Follow the signal through the map!","Active intrusion! Chase them — pick the correct IP at each hop!","They're bouncing around the world trying to hide. Don't lose them!"] },
