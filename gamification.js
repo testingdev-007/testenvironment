@@ -1,3 +1,8 @@
+/* ════════════════════════════════════════════════════════════
+   CYBERSHIELD ACADEMY
+   FILE: gamification_2026-06-10_v1.js
+   ROLE: gamification.js
+   ════════════════════════════════════════════════════════════ */
 // ============================================================
 // GAMIFICATION.JS — CyberShield Academy v1
 // Persists across resets (memory only) — clears on page reload
