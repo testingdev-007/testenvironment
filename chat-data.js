@@ -22,7 +22,87 @@ const GENERAL_GROUP_CHAT = {
     { persona:'marcus', msgs:["W investigator! Next case incoming 📨","That's how it's done. Ready for the next one?"] },
     { persona:'priya',  msgs:["Case closed. Check your inbox — attackers don't take breaks.","Good work. There's always another one coming."] },
   ],
+  idle: [
+    { persona:'marcus', msgs:[
+      "All quiet... for now 👀",
+      "Did you know the first computer bug was a real moth? 🦗",
+      "Network's calm. Enjoy it!",
+      "Priya just made coffee. Jealous. ☕",
+      "Nothing yet. Hackers must be having a snack.",
+      "Fun fact: some DDoS attacks use millions of computers at once!",
+      "Quiet spell. Use it to think. 🧠",
+      "Still here if you need us!",
+    ]},
+    { persona:'zara', msgs:[
+      "No rush — take your time.",
+      "Always here if you've got questions!",
+      "Quiet is good in this job.",
+      "Being thorough beats being fast. Always.",
+      "How are you finding it so far?",
+    ]},
+    { persona:'priya', msgs:[
+      "Low threat right now. Stay sharp anyway.",
+      "Hackers love when people get comfortable.",
+      "Quiet period. Good time to think.",
+      "I'm running background scans. Nothing flagged.",
+    ]},
+  ],
 };
+
+const GLOBAL_CHAT = {
+
+  toolCorrect: [
+    {persona:'marcus', msgs:["That's it! ✅","Right tool! Let's go 🎯","Locked in!","That's the one! 🙌","Yes! 💪","Nailed it!","Bingo!"]},
+    {persona:'zara',   msgs:["Perfect. 👌","Exactly right.","Good call.","Spot on. ✨","That's what I'd pick.","Sharp!"]},
+    {persona:'priya',  msgs:["Confirmed. ✓","Correct. Go.","Right tool.","Good.","That works."]},
+  ],
+
+  toolWrong: [
+    {persona:'zara',   msgs:["Hmm — re-read the email. The attack type is your clue 🔍","Not quite! What does the email say is happening?","Check the email — which tool matches that kind of problem?"]},
+    {persona:'marcus', msgs:["Not that one! Your email's the clue 😄","Wrong tool! What type of attack is it? Go back and check!","Sneak peek: the answer's in your email!"]},
+    {persona:'priya',  msgs:["Wrong one. Read the email again — what's the threat?","The email tells you what to look for. Which tool does that?","Check the email. Attack type → right tool."]},
+  ],
+
+  actionCorrect: [
+    {persona:'marcus', msgs:["Yes! 🎯","Called it! 💪","Boom! ✅","Nailed it!","Clean! ✨","Exactly!","👏","Solid!","Sharp!","Easy for you! 😄","That one was sneaky — well done!","Knew you'd get that!","💯","Beautiful!","Love it!"]},
+    {persona:'zara',   msgs:["Spot on. 👌","Smart move.","That's the one.","Good instinct!","Correct. ✓","Perfect.","Really confident call — nice!","Good thinking.","Well spotted!","Exactly what I'd do.","That takes sharp eyes.","Nice."]},
+    {persona:'priya',  msgs:["Correct. ✔","Right call.","That checks out.","Yep. ✓","Exactly.","Good.","That's it."]},
+  ],
+
+  actionWrong: [
+    {persona:'zara',   msgs:["Hmm — look at the data again. What does it actually tell you?","Think about it — is this a lot, a little, or normal?","Look more carefully. What's actually going on there?"]},
+    {persona:'marcus', msgs:["Ooh — look again! Is this really bad, a bit odd, or totally fine?","Check the numbers — does that seem normal to you?","Not quite! Take another look at what the data shows 🔍"]},
+    {persona:'priya',  msgs:["Wrong action. Look at the data again — what does it mean?","Think about the scale. A tiny bit odd, or really concerning?","Re-read that card. What's the key piece of data telling you?"]},
+  ],
+
+  allHandled: [
+    {persona:'marcus', msgs:["All done! Last step — who gets the report? 📋","Boom — all handled! Now pick the right team 👇","Finished! One more move...","Nearly there! Who do we tell?"]},
+    {persona:'zara',   msgs:["Good work! Now — who should this report go to?","All assessed! Pick the right team.","Last step — which team handles this type of thing?","Almost done. Think about who to report to."]},
+  ],
+
+  reportCorrect: [
+    {persona:'zara',   msgs:["Perfect team choice! 🏆","Yes — they're on it!","Exactly right!","Right people, right time!"]},
+    {persona:'marcus', msgs:["YESSS! Right team! 🦸","Hero! That's the one! 💪","Couldn't pick better! 🎯","They've got it from here! Let's go!"]},
+    {persona:'priya',  msgs:["Correct. They'll handle it. ✓","Right team. Well done.","Good call."]},
+  ],
+
+  reportWrong: [
+    {persona:'zara',   msgs:["Wrong team — who actually deals with THIS type of problem?","Hmm. Think about what kind of incident this is. Which team owns that?"]},
+    {persona:'priya',  msgs:["That team wouldn't handle this. What's the job? Who does that job?","Wrong team. Think: what kind of attack is it, who responds to that?"]},
+    {persona:'marcus', msgs:["Nope! Think about what team actually handles this stuff 😬","Not them! Which team owns this type of problem?"]},
+  ],
+
+  scenarioComplete: [
+    {persona:'marcus', msgs:["MISSION COMPLETE! 🎉","Done and dusted! 🌟","Another one down! 💪","CRUSHED IT! 🏆","Agent-level work right there!","You're getting dangerous at this 😄","That was class! 🔥"]},
+    {persona:'zara',   msgs:["Great work! 🌟","Really solid.","Nicely handled.","You did well there.","Impressive work!","That was great!"]},
+    {persona:'priya',  msgs:["Clean work. ✓","Well done.","Handled properly.","Mission complete. ✓","Solid."]},
+  ],
+
+};
+
+// ── MODULE-SPECIFIC CHAT ───────────────────────────────────────
+// Only needs: onLoad_1 (heads up), onLoad_2 (start here),
+// onActionWrong (contextual hint for this module's data)
 
 // ── MODULE CHAT ────────────────────────────────────────────────
 const MODULE_GROUP_CHAT = {
