@@ -1,3 +1,8 @@
+/* ════════════════════════════════════════════════════════════
+   CYBERSHIELD ACADEMY
+   FILE: sounds.js
+   ROLE: sounds.js
+   ════════════════════════════════════════════════════════════ */
 // ============================================================
 // SOUNDS.JS — CyberShield Academy Audio Engine v3
 // Professional workplace sounds + mission-control ambience
