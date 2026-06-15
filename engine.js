@@ -1,3 +1,8 @@
+/* ════════════════════════════════════════════════════════════
+   CYBERSHIELD ACADEMY
+   FILE: engine_2026-06-10_v29.js
+   ROLE: engine.js
+   ════════════════════════════════════════════════════════════ */
 // ============================================================
 // ENGINE.JS  —  CyberShield Academy  v6
 // ============================================================
@@ -12,13 +17,13 @@
 
 
 // ── SESSION HISTORY — persists across resets, clears on page reload ──
-const SESSION_HISTORY = {
+var SESSION_HISTORY = {
   modulesUsed: new Set(),      // module IDs shown this page load
   quizShown:   {},             // { moduleId: Set of question indices shown }
   scenarioKeys: new Set(),     // 'modId_numEsc_type' — avoid identical patterns
 };
 
-const GS = {
+var GS = {
   maxH:3, hearts:3, xp:0,
   round:0, totalRounds:4,
   modId:null, scenario:null,
@@ -562,7 +567,7 @@ function loadTool(){
 
 
 // ── LEGENDS — quick reference above data cards ─────────────────
-const MODULE_LEGENDS = {
+var MODULE_LEGENDS = {
   ddos:           '🔴 Over 10× normal → Block   🟡 3–10× normal → Slow it down   🟢 Normal → Leave it',
   malware:        '🔴 Unknown program → Quarantine   🟡 Real but acting odd → Investigate   🟢 Known & normal → Leave it',
   ransomware:     '🔴 Bad extension + lots encrypted → Isolate   🟡 Suspicious extension, few files → Investigate   🟢 Normal → Leave it',
@@ -766,7 +771,7 @@ function animGraph(data,base,cur){
 
 // ── PHISHING EXCEPTION (does NOT count as a round) ────────────
 // Large pool of varied phishing scenarios — different tells each time
-const PHISH_POOL = [
+var PHISH_POOL = [
   // Typo domains — letter swap
   { domain:'go0gle.com',     real:'google.com',     subjects:['URGENT: Google Account Suspended','Security Alert: Unusual Sign-In','Your Google Account Needs Verification'], body:(d)=>`Dear Google User,\n\nWe detected suspicious activity on your Google account. Your account will be permanently deleted in 24 hours unless you verify your identity:\n\nhttp://accounts.${d}/verify\n\nGoogle Security Team` },
   { domain:'micros0ft.com',  real:'microsoft.com',  subjects:['Microsoft 365: Your Licence Has Expired','Action Required: Verify Your Microsoft Account','Your OneDrive Has Been Locked'], body:(d)=>`Dear User,\n\nYour Microsoft 365 licence has expired. To avoid losing access to your files and email, please renew immediately:\n\nhttp://account.${d}/renew\n\n— Microsoft Support` },
@@ -804,7 +809,7 @@ function loadPhish(){
 // Exception: does NOT count as a round
 // ═══════════════════════════════════════════════════════════════
 
-const CITIES=[
+var CITIES=[
   {city:'London',      lat:51.5,  lon:-0.12, country:'UK'},
   {city:'Amsterdam',   lat:52.37, lon:4.89,  country:'NL'},
   {city:'Frankfurt',   lat:50.11, lon:8.68,  country:'DE'},
@@ -947,7 +952,7 @@ function triggerTraceGlitch(onResume){
 // recognisable, not so much they slow down canvas rendering
 
 // ── NEON MAP — self-contained, no external dependencies ──────
-const TRACER = { animId: null };
+var TRACER = { animId: null };
 
 function mapProj(lat, lon, w, h) {
   return { x: ((lon + 180) / 360) * w, y: ((90 - lat) / 180) * h };
@@ -1064,7 +1069,7 @@ function flashHop(hop, first, onDone){
 }
 
 // ── MAP PULSE (during answer phase) ──────────────────────────
-let _mapPulseId = null;
+var _mapPulseId = null;
 function startMapPulse(){
   if(_mapPulseId) return;
   function pulse(){
