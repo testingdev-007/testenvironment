@@ -1,1458 +1,1198 @@
+/* ════════════════════════════════════════════════════════════
+   CYBERSHIELD ACADEMY
+   FILE: modules_2026-06-10_v11.js
+   ROLE: modules.js
+   ════════════════════════════════════════════════════════════ */
 // ============================================================
-// ENGINE.JS  —  CyberShield Academy  v6
+// MODULES.JS — CyberShield Academy Simulation Modules
 // ============================================================
-// KEY CHANGES v6:
-//  - Exceptions don't count against the round total
-//  - Globe: slow idle spin, new hop auto-rotates to RIGHT EDGE
-//    so city drifts left across visible face (readable for ~4s)
-//  - New RAG flow: ONE overall severity question per scenario
-//    (asked once when tool loads correctly), then per-row
-//    the student just picks the ACTION (no redundant RAG repeat)
-//  - Data rows are cards — all info visible, no truncation
 
+var MODULES = {};
 
-// ── SESSION HISTORY — persists across resets, clears on page reload ──
-const SESSION_HISTORY = {
-  modulesUsed: new Set(),      // module IDs shown this page load
-  quizShown:   {},             // { moduleId: Set of question indices shown }
-  scenarioKeys: new Set(),     // 'modId_numEsc_type' — avoid identical patterns
-};
-
-const GS = {
-  maxH:3, hearts:3, xp:0,
-  round:0, totalRounds:4,
-  modId:null, scenario:null,
-  correctTool:null, toolOk:false,
-  reportReady:false,
-  active:false,
-  phishDone:false, ipDone:false,
-  queue:[], forceMod:null,
-  badTools:0,
-  sessId:uid(),
-  scenarioRagDone:true,
-  ip:{},
-  gfr:null,
-  autoTimer:null,
-  stuckTimer:null, stuckStep:0,
-  pendingEmail:null,
-  // Plenary / debrief state
-  debriefModId:null,
-  plenReportDone:false,
-  plenQuizAnswered:0,
-  plenQuizTotal:0,
-  // Gamification tracking — resets each run, never touches GAMIFICATION object
-  quizCorrect:0, quizTotal:0,
-  phishReported:false, ipWon:false, livesLost:0,
-  selectedEmailId:null,
-  emailOpened:false, // set true when email content shown
-  briefingsSeen:new Set(), stuckCount:0,
-  // Per-session escalation control
-  sessionFlags:{allGreenUsed:false, highEscalationUsed:false, lastWasLow:false},
-};
-
-function uid(){return Math.random().toString(36).substr(2,8).toUpperCase();}
-
-
-// ── WELCOME MODAL ─────────────────────────────────────────────
-(function(){
-  // Mini matrix rain on welcome canvas
-  const cv=document.getElementById('wm-matrix');
-  if(!cv)return;
-  const ctx=cv.getContext('2d');
-  const ch='01アイウエオ@#ABCDEFabcdef';
-  let dr=[];
-  function rsz(){cv.width=innerWidth;cv.height=innerHeight;dr=Array.from({length:Math.floor(cv.width/14)},()=>Math.random()*-80);}
-  rsz();window.addEventListener('resize',rsz);
-  setInterval(()=>{
-    ctx.fillStyle='rgba(0,0,0,.05)';ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.fillStyle='#00ff41';ctx.font='12px Share Tech Mono,monospace';
-    dr.forEach((y,i)=>{ctx.fillText(ch[Math.floor(Math.random()*ch.length)],i*14,y*14);if(y*14>cv.height&&Math.random()>.975)dr[i]=0;dr[i]++;});
-  },50);
-})();
-
-function launchMission(){
-  try{SFX.unlock();SFX.btnClick();}catch(ex){}
-  // Dismiss the welcome modal immediately and reliably
-  var modal=document.getElementById('welcomeModal');
-  if(modal){
-    modal.style.opacity='0';
-    modal.style.pointerEvents='none';
-    setTimeout(function(){if(modal)modal.style.display='none';},400);
+// ── Utility: seeded random helpers ──────────────────────────
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randFloat(min, max, dp=1) { return parseFloat((Math.random() * (max - min) + min).toFixed(dp)); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
   }
-  // Make sure the game is initialised (in case _boot hasn't run yet)
-  try{
-    if(!GS||GS.modId===undefined){ if(typeof _boot==='function')_boot(); }
-  }catch(ex){ if(typeof _boot==='function')_boot(); }
-  // Nudge the player toward the first action
-  setTimeout(function(){
-    try{SFX.newMail();}catch(ex){}
-    var br=document.getElementById('btnRefresh');
-    if(br)br.classList.add('pulse-glow');
-  },450);
+  return a;
+}
+function jitter(base, pct=0.15) { return Math.round(base * (1 + (Math.random()-0.5)*pct*2)); }
+
+// ── SCENARIO UTILITY ─────────────────────────────────────────
+function buildRagProfile(type,count){
+  if(!count)return[];
+  const base={'RED_RED':['R','R','R','R'],'RED_AMBER':['R','A','A','A'],'AMBER_AMBER':['A','A','A','A'],'RED_RED_AMBER':['R','R','A','A'],'RED_AMBER_AMBER':['R','A','A','A'],'RED_RED_RED':['R','R','R','R']}[type]||['R','A'];
+  const out=[];for(let i=0;i<count;i++)out.push(base[Math.min(i,base.length-1)]);
+  return out;
 }
 
-function askReset(){
-  document.getElementById('resetConfirm').classList.add('open');
-}
-function confirmReset(){
-  document.getElementById('resetConfirm').classList.remove('open');
-  resetAll();
-}
-
-// ── BOOT ──────────────────────────────────────────────────────
-
-// ── XP POPUP — centre screen, scrolling number animation ─────
-
-// ── ATTACK BRIEFING — shown after tool select, before data cards ─
-
-
-
-
-
-
-
-// ── STUCK TIMER — fires context-sensitive hints if card not answered ──
-function startStuckTimer(){
-  clearStuckTimer();
-  GS.stuckTimer=setTimeout(function fireStuck(){
-    const pool=(MODULE_GROUP_CHAT[GS.modId]||{}).onStuck;
-    if(pool&&pool.length){
-      const e=pool[Math.min(GS.stuckCount,pool.length-1)];
-      gcMsg(e.persona,pick(e.msgs));
-      GS.stuckCount++;
-    }
-    // Fire again after progressively longer delay
-    GS.stuckTimer=setTimeout(fireStuck, 18000);
-  },14000);
-}
-function clearStuckTimer(){
-  if(GS.stuckTimer){clearTimeout(GS.stuckTimer);GS.stuckTimer=null;}
-}
-
-
-// ══════════════════════════════════════════════════════════════
-// UNIFIED MODAL SYSTEM — one container, bulletproof show/hide
-// ══════════════════════════════════════════════════════════════
-function gameModalEl(){ return document.getElementById('gameModal'); }
-
-function showGameModal(innerHTML, onClose){
-  var el=gameModalEl();
-  if(!el){ if(onClose)onClose(); return; }
-  var body=document.getElementById('gameModalBody');
-  if(!body){ if(onClose)onClose(); return; }
-  body.innerHTML=innerHTML;
-  el.style.display='flex';
-  // The single OK/continue button inside the modal closes it
-  var ok=document.getElementById('gameModalOk');
-  if(ok){
-    ok.onclick=function(){
-      el.style.display='none';
-      body.innerHTML='';
-      if(onClose)onClose();
-    };
-  }
-}
-
-function showXPModal(amount,label,onClose){
-  var html='<div class="gm-xp-ring"><div class="gm-xp-amt">+'+amount+'</div><div class="gm-xp-unit">XP</div></div>'
-          +'<div class="gm-title">'+(label||'XP Earned!')+'</div>'
-          +'<button class="btn btn-g btn-orb gm-ok" id="gameModalOk">NEXT &rarr;</button>';
-  showGameModal(html, onClose);
-}
-
-function showAttackBriefing(mod){
-  try{
-    var b=mod&&mod.briefing; if(!b)return;
-    var html='<div class="gm-flash">&#9889; NEW ATTACK TYPE &#9889;</div>'
-            +'<div class="gm-brief-title">'+esc(b.title||'')+'</div>'
-            +'<div class="gm-brief-tag">'+esc(b.tagline||'')+'</div>'
-            +'<div class="gm-brief-sec"><div class="gm-brief-lbl">WHAT IS IT?</div><div class="gm-brief-txt">'+esc(b.summary||'')+'</div></div>'
-            +'<div class="gm-brief-sec"><div class="gm-brief-lbl">&#128269; WHAT TO WATCH FOR</div><div class="gm-brief-txt" style="color:#ffe082">'+esc(b.watchFor||'')+'</div></div>'
-            +'<div class="gm-brief-sec"><div class="gm-brief-lbl">&#127757; REAL WORLD CASE</div><div class="gm-brief-txt" style="color:#b0d0ff;font-style:italic">'+esc(b.realWorld||'')+'</div></div>'
-            +'<button class="btn btn-g btn-orb gm-ok" id="gameModalOk">&#128373;&#65039; START INVESTIGATION &rarr;</button>';
-    showGameModal(html, null);
-  }catch(e){console.warn('Briefing error:',e);}
-}
-
-function _boot(){
-  if(!GS.briefingsSeen)GS.briefingsSeen=new Set();
-  initMatrix();
-  rHearts();rXP();rRound();setStep(0);
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
-  gcMsg('zara',  pick(GENERAL_GROUP_CHAT.welcome[0].msgs),700);
-  gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
-  gcMsg('priya', pick(GENERAL_GROUP_CHAT.welcome[2].msgs),8000);
-  idleLoop();
-}
-// Handles both normal <script> loading and dynamic loading via loader.js
-if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',_boot);
-} else {
-  setTimeout(_boot,0);
-}
-
-// ── MATRIX ────────────────────────────────────────────────────
-function initMatrix(){
-  const cv=document.getElementById('matrixCanvas'),ctx=cv.getContext('2d');
-  const ch='ABCDEFGHIJKLMNOPQRSTUVWXYZアイウエオ0123456789@#$%^&*';
-  let dr=[];
-  function rsz(){cv.width=innerWidth;cv.height=innerHeight;dr=Array.from({length:Math.floor(cv.width/14)},()=>Math.random()*-60);}
-  rsz();window.addEventListener('resize',rsz);
-  setInterval(()=>{
-    const al=document.body.classList.contains('alert-mode');
-    ctx.fillStyle=al?'rgba(0,0,0,.06)':'rgba(0,0,0,.05)';
-    ctx.fillRect(0,0,cv.width,cv.height);ctx.fillStyle=al?'#ff0040':'#00ff41';
-    ctx.font='12px Share Tech Mono,monospace';
-    dr.forEach((y,i)=>{ctx.fillText(ch[Math.floor(Math.random()*ch.length)],i*14,y*14);if(y*14>cv.height&&Math.random()>.975)dr[i]=0;dr[i]++;});
-  },50);
-}
-
-// ── UI HELPERS ────────────────────────────────────────────────
-function rHearts(){
-  const el=document.getElementById('heartsEl');el.innerHTML='';
-  for(let i=0;i<GS.maxH;i++){const s=document.createElement('span');s.className='heart'+(i>=GS.hearts?' lost':'');s.textContent='❤';el.appendChild(s);}
-}
-function loseH(why){try{SFX.wrong();}catch(e){}GS.livesLost=(GS.livesLost||0)+1;if(GS.hearts<=1){toast('Hanging on!','bad');return;}GS.hearts=Math.max(1,GS.hearts-1);rHearts();toast('-1 ❤  '+why,'bad');}
-function rXP(){document.getElementById('xpNum').textContent=GS.xp;document.getElementById('xpFill').style.width=Math.min(100,(GS.xp/500)*100)+'%';}
-function addXP(n){
-  if(!n)return;
-  GS.xp=Math.max(0,GS.xp+n);
-  rXP();
-}
-function rRound(){document.getElementById('roundNum').textContent=GS.round+'/'+GS.totalRounds;}
-function setSim(t){document.getElementById('simStatus').textContent=t;}
-function toast(msg,type='ok'){/* top-right notifications removed — hints flow through group chat */ }
-
-function setStep(n){
-  for(let i=1;i<=5;i++){const el=document.getElementById('st'+i);if(!el)continue;el.classList.remove('on','done');if(i===n)el.classList.add('on');else if(i<n)el.classList.add('done');}
-  clearTimeout(GS.stuckTimer);
-  if(n>0&&n<5){GS.stuckStep=n;GS.stuckTimer=setTimeout(()=>{if(GS.stuckStep===n&&GS.active)offerHelp(n);},50000);}
-  // Glow the panel the child needs to use right now
-  clearGlows();
-  if(n===1){setGlow('inboxPanel','action-glow');setGlow('emailPanel','action-glow');}
-  else if(n===2){setGlow('toolPanel','action-glow');}
-  else if(n===3||n===4){setGlow('toolPanel','amber-glow');}
-  else if(n===5){setGlow('toolPanel','action-glow');}
-  // On mobile: bring the relevant panel into view automatically
-  if(typeof mobileAutoTab==='function') mobileAutoTab(n);
-}
-function setGlow(id,cls){const el=document.getElementById(id);if(el)el.classList.add(cls);}
-function clearGlows(){
-  ['inboxPanel','emailPanel','toolPanel','chatPanel'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el){el.classList.remove('action-glow','amber-glow');}
-  });
-}
-function offerHelp(step){
-  const hints={
-    1:["Can you see your email? Click it, then press OPEN IT to read it!","Click the email in the list on the left — then press the OPEN IT button!"],
-    2:["Now pick a tool from the dropdown above the data area and click LOAD TOOL. Look at your email — what kind of attack is it?","Hint: your email tells you the type of attack. Pick the tool that matches!"],
-    3:["Look at each card — what do the numbers tell you? Click the buttons to decide what to do!","Check each item. Big spike = Red, a bit high = Amber, looks normal = Green."],
-    4:["Click the action buttons on each card. You're nearly done!","For each card, pick Block, Quarantine, or Ignore based on how serious it looks."],
-  };
-  gcMsg(pick(['zara','marcus','priya']),pick(hints[step]||hints[2]));
-}
-
-// ── SMARTCHAT STUBS (removed — no longer used) ─────────────────
-function sendSC(){}
-function setSCDis(){}
-function initSC(){}
-
-function showTab(t){
-  ['E','R'].forEach(n=>{
-    document.getElementById('tab'+n).classList.toggle('on',n===t);
-    document.getElementById('tabBody'+n).classList.toggle('on',n===t);
-  });
-}
-
-// ── IDLE CHAT (slow — one message every ~75 seconds) ──────────
-function idleLoop(){
-  setTimeout(()=>{
-    if(!GS.active){const pool=[{p:'marcus',msgs:GENERAL_GROUP_CHAT.idle[0].msgs},{p:'zara',msgs:GENERAL_GROUP_CHAT.idle[1].msgs},{p:'priya',msgs:GENERAL_GROUP_CHAT.idle[2].msgs}];const e=pick(pool);gcMsg(e.p,pick(e.msgs));}
-    idleLoop();
-  },65000+Math.random()*20000);
-}
-
-// ── DIFFICULTY ────────────────────────────────────────────────
-function setDiff(v){
-  if(GS.active){gcMsg('priya','Finish the current case before checking for new emails.');return;}
-  GS.maxH=GS.hearts=parseInt(v);rHearts();
-}
-
-// ── ADMIN ─────────────────────────────────────────────────────
-function openAdmin(){document.getElementById('adminModal').classList.add('open');}
-function closeAdmin(){document.getElementById('adminModal').classList.remove('open');}
-function applyAdmin(){
-  const mod=document.getElementById('adminModSel').value;
-  const rnds=parseInt(document.getElementById('adminRounds').value)||4;
-  GS.forceMod=mod||null;GS.totalRounds=rnds;rRound();closeAdmin();toast('Admin settings applied!','warn');
-}
-
-// ── REFRESH INBOX ─────────────────────────────────────────────
-function refreshInbox(){
-  try{SFX.newMail();}catch(e){}/*vox*/clearTimeout(GS.autoTimer);
-  document.getElementById('btnRefresh').classList.remove('pulse-glow');
-  if(GS.active){gcMsg('priya','Finish the current case before checking for new emails.');return;}
-  // Reset email/results pane for fresh mission
-  document.getElementById('welcomeMsg').style.display='block';
-  document.getElementById('emailView').style.display='none';
-  showTab('E');
-  clearEmailActionBar();
-  // Only show endgame when ALL rounds done AND no exceptions left in queue
-  if(GS.round>=GS.totalRounds&&!GS.queue.length){showEndgame();return;}
-  if(GS.forceMod){const m=GS.forceMod;GS.forceMod=null;dispatchMod(m);return;}
-  if(!GS.queue.length)buildQueue();
-  dispatchMod(GS.queue.shift());
-}
-function dispatchMod(id){
-  if(id==='__phish__')  loadPhish();
-  else if(id==='__iptrace__') loadIPTrace();
-  else loadModule(id);
-}
-function buildQueue(){
-  // Prefer modules not yet seen this page session — reduces repetition on reset
-  const unseen=MODULE_LIST.filter(m=>!SESSION_HISTORY.modulesUsed.has(m));
-  const pool=unseen.length>=GS.totalRounds?unseen:MODULE_LIST;
-  const mods=shuffle(pool).slice(0,GS.totalRounds);
-  mods.forEach(m=>SESSION_HISTORY.modulesUsed.add(m));
-  // BOTH exceptions are guaranteed every session — always inserted at random positions
-  mods.splice(randInt(0,mods.length),0,'__phish__');
-  let p=randInt(0,mods.length);
-  while(mods[p]==='__phish__')p=randInt(0,mods.length); // don't stack next to each other
-  mods.splice(p,0,'__iptrace__');
-  GS.queue=mods;
-}
-function schedAutoAdvance(delay=18000){
-  clearTimeout(GS.autoTimer);
-  // Keep going while there are rounds left OR exceptions still in the queue
-  const moreToGo=GS.round<GS.totalRounds||GS.queue.length>0;
-  if(!GS.active&&moreToGo){
-    GS.autoTimer=setTimeout(()=>{
-      if(!GS.active&&(GS.round<GS.totalRounds||GS.queue.length>0)){
-        gcMsg('marcus',pick(['New email just arrived — get ready!','Heads up, another case just landed!','Fresh one in the inbox!']));
-        setTimeout(refreshInbox,1500);
-      }
-    },delay);
-  }
-}
-
-
-// ── SCENARIO PARAMS — controls escalation count, type and edge cases ──
-function buildScenarioParams(){
-  const f=GS.sessionFlags;
-  const r=GS.round+1; // about to play this round
-
-  // All-green: once per game, not first round, not if last was already low
-  if(!f.allGreenUsed && !f.lastWasLow && r>=2 && r<GS.totalRounds && Math.random()>.72){
-    f.allGreenUsed=true;
-    return {numEscalations:0,escalationType:'none',includeEdgeCase:false,numItems:6};
-  }
-  // High escalation: once per game, not first round
-  if(!f.highEscalationUsed && r>=2 && Math.random()>.55){
-    f.highEscalationUsed=true;
-    return {numEscalations:randInt(3,4),escalationType:pick(['RED_RED_AMBER','RED_RED_RED','RED_AMBER_AMBER']),includeEdgeCase:true,numItems:7};
-  }
-  // Prevent two sequential low-escalation rounds
-  const minE=f.lastWasLow?2:1;
-  const numE=pick([1,2,2,2,2,3].filter(n=>n>=minE));
-  let escalType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']);
-  // Avoid repeating the exact same pattern for this module this session
-  const k=`${GS.modId}_${numE}_${escalType}`;
-  if(SESSION_HISTORY.scenarioKeys.has(k)){
-    const alts=['RED_AMBER','RED_RED','AMBER_AMBER'].filter(t=>!SESSION_HISTORY.scenarioKeys.has(`${GS.modId}_${numE}_${t}`));
-    if(alts.length) escalType=alts[0];
-  }
-  SESSION_HISTORY.scenarioKeys.add(`${GS.modId}_${numE}_${escalType}`);
-  return {numEscalations:numE,escalationType:escalType,includeEdgeCase:Math.random()>.3,numItems:6};
-}
-
-// ── LOAD MODULE ───────────────────────────────────────────────
-function loadModule(id){
-  const mod=MODULES[id];
-  if(!mod){console.error('loadModule: no module',id);return;}
-  if(!mod.tools||!mod.tools.correct){
-    console.error('loadModule: module missing tools.correct',id);
-    document.getElementById('toolData').innerHTML='<div class="terr">⚠ This module is not fully set up. Please refresh for the next mission.</div>';
-    return;
-  }
-  // Guard: close any stale plenary, clear chat for fresh mission
-  document.getElementById('plenaryModal').classList.remove('open');
-  GS.debriefModId=null;GS.plenReportDone=false;GS.plenQuizAnswered=0;GS.plenQuizTotal=0;
-  GS.emailOpened=false;GS.stuckCount=0;clearStuckTimer();
-  GS.round++;rRound();  // only real modules count
-  GS.modId=id;GS.correctTool=mod.tools.correct;GS.toolOk=false;
-  GS.reportReady=false;GS.badTools=0;GS.active=true;
-  GS.scenarioRagDone=true;
-  const _params=buildScenarioParams();
-  GS.scenario=mod.generateScenario(_params);
-  const _esc=GS.scenario.filter(s=>s.ragAnswer!=='G').length;
-  GS.sessionFlags.lastWasLow=_esc<=1;
-  document.getElementById('scenProg').textContent='ROUND '+GS.round+'/'+GS.totalRounds;
-  setSim(mod.name);setStep(1);
-  resetTool();
-  const toolSel=document.getElementById('toolSel');
-  toolSel.innerHTML='<option value="">— Pick an investigation tool —</option>';
-  getToolOptions(id).forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;toolSel.appendChild(o);});
-  const email={id:Date.now(),sender:mod.emailSender(),subject:mod.emailSubject(),body:mod.emailBody(GS.scenario),modId:id,phish:false};
-  GS.pendingEmail=email;
-  addToInbox(email);
-  setTimeout(()=>gcModLoad(id),800);
-}
-
-function resetTool(){
-  if(GS.gfr){cancelAnimationFrame(GS.gfr);GS.gfr=null;}
-  const _gc=document.getElementById('graphCanvas'); if(_gc)_gc.style.display='none';
-  document.getElementById('toolData').innerHTML='<div class="tph">📧 Read your email first — then pick the right tool above and click <strong>▶ LOAD TOOL</strong>!</div>';
-  document.getElementById('toolBar').innerHTML='<span class="bhint">👈 Your email tells you what kind of attack it is. That\'s the clue for picking your tool!</span>';
-}
-
-// ── INBOX ─────────────────────────────────────────────────────
-function addToInbox(email){
-  document.getElementById('ilistEmpty').style.display='none';
-  const list=document.getElementById('ilist');
-  const el=document.createElement('div');
-  el.className='eitem unread'+(email.phish?' phish':'');
-  el.dataset.eid=email.id;
-  el.dataset.sender=email.sender;
-  el.dataset.subject=email.subject;
-  el.dataset.body=email.body||'';
-  el.innerHTML=`
-    <div class="ef">${esc(email.sender)}</div>
-    <div class="es">${esc(email.subject)}</div>
-    <div class="et">Just now</div>`;
-  // Clicking the inbox item selects it and (for regular emails) opens content
-  el.addEventListener('click',()=>{
-    if(el.classList.contains('done'))return;
-    selectInboxEmail(email.id, email);
-    if(!email.phish){showEmailContent(email);setStep(2);}
-  });
-  list.insertBefore(el,list.firstChild);
-  // Select and highlight in inbox (buttons enabled), but do NOT auto-open email pane
-  setTimeout(()=>selectInboxEmail(email.id, email),350);
-  // Team chat hint for phishing emails
-  if(email.phish){setTimeout(()=>{const e2=pick(PHISHING_EXCEPTION_CHAT.onPhishingArrived);gcMsg(e2.persona,pick(e2.msgs));},1800);}
-}
-
-function selectInboxEmail(id, email){
-  GS.selectedEmailId=id;
-  document.querySelectorAll('.eitem').forEach(i=>i.classList.remove('sel'));
-  const el=document.querySelector(`[data-eid="${id}"]`);
-  if(el){el.classList.add('sel');el.classList.remove('unread');}
-  // Enable the action bar buttons
-  const btnO=document.getElementById('btnOpenEmail');
-  const btnR=document.getElementById('btnFlagEmail');
-  if(btnO)btnO.disabled=false;
-  if(btnR)btnR.disabled=false;
-  // Pulse the OPEN button to guide the child
-  if(btnO){btnO.classList.add('pulse-glow');setTimeout(()=>btnO.classList.remove('pulse-glow'),4000);}
-}
-
-function clearEmailActionBar(){
-  GS.selectedEmailId=null;
-  const btnO=document.getElementById('btnOpenEmail');
-  const btnR=document.getElementById('btnFlagEmail');
-  if(btnO){btnO.disabled=true;btnO.classList.remove('pulse-glow');}
-  if(btnR)btnR.disabled=true;
-}
-
-// Called by the OPEN IT / REPORT IT buttons above the inbox
-function actOnSelectedEmail(action){
-  const id=GS.selectedEmailId;
-  if(id==null)return;
-  const el=document.querySelector(`[data-eid="${id}"]`);
-  if(!el||el.classList.contains('done'))return;
-  if(el.classList.contains('phish')){
-    doEmail(id,action,null);
-  } else {
-    if(action==='open'){
-      const email={id,sender:el.dataset.sender,subject:el.dataset.subject,body:el.dataset.body};
-      showEmailContent(email);setStep(2);
-    } else {
-      toast('This looks like a genuine email — no need to report it!','warn');
-    }
-  }
-}
-
-function showEmailContent(email){
-  GS.emailOpened=true;
-  document.getElementById('welcomeMsg').style.display='none';
-  const v=document.getElementById('emailView');v.style.display='block';
-  v.innerHTML=`<div class="evmeta"><span class="evlbl">FROM</span><span class="evval">${esc(email.sender)}</span><span class="evlbl evsep">SUBJECT</span><span class="evval evbig">${esc(email.subject)}</span></div><div class="evbody">${esc(email.body)}</div>`;
-  showTab('E');
-}
-
-function doEmail(id,action,evt){
-  if(evt)evt.stopPropagation();
-  const el=document.querySelector(`[data-eid="${id}"]`);
-  if(!el||el.classList.contains('done'))return;
-  const isPhish=el.classList.contains('phish');
-  if(isPhish){
-    el.classList.add('done');el.classList.remove('sel','unread','phish');
-    if(action==='open'){
-      loseH('Opened a fake email!');addXP(-20);
-      const e=pick(PHISHING_EXCEPTION_CHAT.onOpened);gcMsg(e.persona,pick(e.msgs));
-      toast('⚠ That was a fake email! Always check the address first!','bad');
-      const v=document.getElementById('emailView');v.style.display='block';
-      v.innerHTML=`<div class="evmeta"><div class="evlbl">RESULT</div><div class="evval cR">❌ That was a fake email!</div></div>
-        <div class="evbody">In real life, clicking it could put malware on your computer or steal your password.\n\nSpot the tricks: weird spellings (go0gle.com), scary urgent language, links to strange websites.\n\nIf it looks weird — REPORT it, don't open it!</div>`;
-    } else {
-      addXP(30);GS.phishReported=true;
-      const e=pick(PHISHING_EXCEPTION_CHAT.onReported);gcMsg(e.persona,pick(e.msgs));
-      toast('✓ Great spotting — fake email reported!','ok');
-      const v=document.getElementById('emailView');v.style.display='block';
-      v.innerHTML=`<div class="evmeta"><div class="evlbl">RESULT</div><div class="evval cG">✓ Fake email caught! 🎯</div></div>
-        <div class="evbody">You spotted the fake address and reported it — exactly right!\n\nFake emails use tricks like:\n• Letters swapped for numbers (paypa1.com)\n• Wrong domain (company.helpdesk.xyz)\n• Scary urgent language to make you panic\n\nAlways check before you click!</div>`;
-    }
-    GS.active=false;setSim('READY');setStep(0);clearEmailActionBar();
-    schedAutoAdvance(12000);
-    return;
-  }
-  if(action==='open'){
-    el.classList.remove('unread');
-    const emailObj=GS.pendingEmail&&GS.pendingEmail.id===id?GS.pendingEmail:
-      {id,sender:el.querySelector('.ef').textContent,subject:el.querySelector('.es').textContent,body:'(Email content unavailable)',phish:false};
-    showEmailContent(emailObj);setStep(2);
-  } else {
-    toast('Nothing suspicious here — use Open to read it.','warn');
-  }
-}
-
-// ── TOOL ──────────────────────────────────────────────────────
-function loadTool(){
-  if(!GS.emailOpened){gcMsg('zara','Open the email first so we know what we\'re dealing with! 👆');return;}
-  const v=document.getElementById('toolSel').value;
-  if(!v){gcMsg('marcus','Pick an investigation tool from the dropdown first! 🔧');return;}
-  if(!GS.active){toast('No scenario active','warn');return;}
-  if(GS.toolOk){toast('Tool already loaded','warn');return;}
-  if(v===GS.correctTool){
-    GS.toolOk=true;GS.badTools=0;
-    GS.scenarioRagDone=true;
-    // STEP 1: Render data cards IMMEDIATELY. Nothing can stop this.
-    renderToolData();
-    setStep(3);
-    // STEP 2: Award XP + tell the team via chat (no modal).
-    addXP(10);
-    gcMsg('marcus','✓ Right tool! +10 XP. Now check each item below 👇',200);
-    gcMod(GS.modId,'onToolCorrect');
-    try{SFX.correct();}catch(e){}
-    // STEP 3: Post the case briefing to chat.
-    try{
-      var m=MODULES[GS.modId];
-      if(m&&m.briefing&&GS.briefingsSeen&&!GS.briefingsSeen.has(GS.modId)){
-        GS.briefingsSeen.add(GS.modId);
-        var b=m.briefing;
-        gcMsg('priya','📋 NEW CASE: '+b.title+' — '+b.tagline,300);
-        gcMsg('zara',b.summary,1400);
-        gcMsg('marcus','🔍 Watch for: '+b.watchFor,3000);
-      }
-    }catch(e){console.warn('Modal error (data still loaded):',e);}
-  } else {
-    GS.badTools++;loseH('Wrong tool');addXP(-5);gcMod(GS.modId,'onToolWrong');/*vox*/;
-    const hint=GS.badTools>=2?'<br><br><em>Hint: your email tells you what type of attack it is — which tool matches?</em>':'';
-    document.getElementById('toolData').innerHTML=`<div class="terr">✗ <strong>${esc(v)}</strong> isn't the right tool for this.${hint}<br><br>Have another look and try again!</div>`;
-  }
-}
-
-
-// ── LEGENDS — quick reference above data cards ─────────────────
-const MODULE_LEGENDS = {
-  ddos:           '🔴 Over 10× normal → Block   🟡 3–10× normal → Slow it down   🟢 Normal → Leave it',
-  malware:        '🔴 Unknown program → Quarantine   🟡 Real but acting odd → Investigate   🟢 Known & normal → Leave it',
-  ransomware:     '🔴 Bad extension + lots encrypted → Isolate   🟡 Suspicious extension, few files → Investigate   🟢 Normal → Leave it',
-  phishingModule: '🔴 Fake address → Report   🟢 Real address → Deliver it',
-  bruteForce:     '🔴 Very fast + very few IPs → Lock   🟡 Suspicious pattern → Investigate   🟢 Normal typos → Leave it',
-  socialEng:      '🔴 Asks for password/access, urgent or secret → Block   🟡 Unusual, needs checking → Verify   🟢 Proper process followed → OK',
-  usbDrop:        '🔴 Unknown device + autorun → Quarantine   🟡 Unknown, no autorun → Investigate   🟢 Company device → OK',
-};
-
-// ── RENDER TABLE (card layout) ─────────────────────────────────
-function renderToolData(){
-  const id=GS.modId,sc=GS.scenario,cols=MODULE_COLUMNS[id];
-  if(!sc||!Array.isArray(sc)){
-    document.getElementById('toolData').innerHTML='<div class="terr">⚠ No scenario data — try refreshing your inbox.</div>';
-    console.error('renderToolData: scenario missing for',id,sc);return;
-  }
-  if(!cols){
-    document.getElementById('toolData').innerHTML='<div class="terr">⚠ Module not configured for this tool.</div>';
-    console.error('renderToolData: columns missing for',id);return;
-  }
-  // Legend strip at top
-  const legend=MODULE_LEGENDS[id]||'';
-  let html=legend?`<div class="legend-strip">${esc(legend)}</div>`:'';
-  sc.forEach((item,i)=>{
-    const done=item.handled;
-    const borderCol=done?(item.ragAnswer==='R'?'var(--red)':item.ragAnswer==='A'?'var(--amb)':'var(--g)'):'rgba(0,255,65,0.18)';
-    html+=`<div class="dcard${done?' done':''}" id="dr${i}" style="border-left:4px solid ${borderCol}" >`;
-    html+=`<div class="dcard-head">`;
-    html+=`<span class="dcard-name">${esc(item.name)}</span>`;
-    if(done){const ok=item.userAction===item.actionAnswer;html+=`<span class="sbadge ${ok?'sbok':'sberr'}">${ok?'✓':'✗'}</span>`;}
-    else{html+=`<span class="sbadge sbpend">ASSESS</span>`;}
-    html+=`</div>`;
-    html+=`<div class="dcard-vals">`;
-    cols.slice(1).forEach(c=>{
-      let v=item[c.key];if(v===null||v===undefined)v='—';if(typeof v==='number')v=v.toLocaleString();
-      let valStyle='';
-      if(c.key==='cvssScore'){valStyle=`color:${v>=9?'var(--red)':v>=7?'var(--amb)':v>=4?'#eeee00':'var(--g)'};font-weight:bold`;}
-      else if(c.key==='severity'){valStyle=`color:${v==='CRITICAL'?'var(--red)':v==='HIGH'?'var(--amb)':v==='MEDIUM'?'#eeee00':'var(--g)'}`;}
-      html+=`<div class="dval"><span class="dval-lbl">${c.label}</span><span class="dval-v" style="${valStyle}">${esc(String(v))}</span></div>`;
-    });
-    html+=`</div>`;
-    if(item.notes){html+=`<div class="dcard-note">${esc(item.notes)}</div>`;}
-    if(!done&&GS.scenarioRagDone){
-      html+=`<div class="dcard-actions">`;
-      (MODULE_ACTIONS[id]||[]).forEach(a=>{
-        const cls=a.id==='block'||a.id==='quarantine'||a.id==='isolate'||a.id==='lockAccount'||a.id==='report'?'btn-r':
-                  a.id==='ignore'?'btn-d':'btn-a';
-        html+=`<button class="btn btn-sm ${cls}" data-row="${i}" data-act="${a.id}">${a.label}</button>`;
-      });
-      html+=`</div>`;
-    } else if(done){
-      const ok=item.userAction===item.actionAnswer;
-      html+=`<div class="dcard-done-info">${ok?'✓ '+item.userAction:'✗ You said: '+item.userAction+' | Correct: '+item.actionAnswer}</div>`;
-    }
-    html+=`</div>`;
-  });
-  document.getElementById('toolData').innerHTML=html;
-  // Single delegated click handler — bound once, reads index from data-attr.
-  // This eliminates any chance of stale/double inline handlers.
-  var td=document.getElementById('toolData');
-  if(td && !td._delegated){
-    td._delegated=true;
-    td.addEventListener('click',function(ev){
-      var btn=ev.target.closest('button[data-row]');
-      if(!btn)return;
-      ev.stopPropagation();
-      var row=parseInt(btn.getAttribute('data-row'),10);
-      var act=btn.getAttribute('data-act');
-      if(!isNaN(row)&&act)doAction(row,act);
-    });
-  }
-  updBar();
-  // Start the stuck-hint timer once data is showing (if not all done)
-  if(GS.scenario&&!GS.scenario.every(s=>s.handled)){startStuckTimer();}
-}
-
-function cardClicked(idx){
-  // Card tap does nothing now — action buttons handle everything.
-  // (Kept as a no-op so existing onclick attributes don't error.)
-}
-
-function doAction(rowIdx,actId){
-  clearStuckTimer();GS.stuckCount=0;
-  const item=GS.scenario[rowIdx];
-  if(!item||item.handled){toast('Already handled!','warn');return;}
-  item.handled=true;
-  item.userAction=actId;
-  const ao=(actId===item.actionAnswer);
-  // Varied XP messages so it doesn't feel robotic
-  var rightMsgs=['✓ Spot on! +15 XP 🎯','✓ Nailed it! +15 XP ⭐','✓ Great call! +15 XP 💪','✓ Exactly right! +15 XP 🔥','✓ Brilliant! +15 XP 🌟'];
-  var wrongMsgs=['Not quite — but keep going! (-5 XP)','Hmm, not this time. (-5 XP)','Close! Have another think next time. (-5 XP)','That one slipped through. (-5 XP)','Tricky one — you\'ll get the next! (-5 XP)'];
-  var rightWho=pick(['marcus','zara','priya']);
-  var wrongWho=pick(['zara','priya','marcus']);
-  if(ao){
-    try{SFX.correct();}catch(e){}
-    addXP(15);
-    gcMsg(rightWho, pick(rightMsgs), 150);
-    // Reinforce WHY it was right — use the item's note
-    if(item.notes){ gcMsg('priya','💡 '+item.notes, 1100); }
-    gcMod(GS.modId,'onActionCorrect',2000);
-  } else {
-    loseH('Wrong action');
-    addXP(-5);
-    gcMsg(wrongWho, pick(wrongMsgs), 150);
-    // Reinforce WHY: state the correct action + the reason
-    var correctLabel=(MODULE_ACTIONS[GS.modId].find(function(a){return a.id===item.actionAnswer;})||{}).label||item.actionAnswer;
-    gcMsg('priya','💡 The right call was "'+correctLabel+'". '+(item.notes||''), 1100);
-    gcMod(GS.modId,'onActionWrong',2200);
-  }
-  renderToolData();
-  const all=GS.scenario.every(s=>s.handled);
-  if(all){setTimeout(()=>{
-    gcMod(GS.modId,'onAllHandled');
-    GS.reportReady=true;
-    renderDebriefButton();
-    setStep(5);
-  },1900);}
-}
-
-function updBar(){
-  const bar=document.getElementById('toolBar');
-  if(!GS.toolOk){bar.innerHTML='<span class="bhint">👆 Pick a tool from the dropdown above and click LOAD TOOL!</span>';return;}
-  if(GS.reportReady){renderDebriefButton();return;}
-  const all=GS.scenario&&GS.scenario.every(s=>s.handled);
-  if(all)bar.innerHTML='<span class="bhint">✅ All done! Click the button below to see your debrief!</span>';
-  else bar.innerHTML='<span class="bhint">👆 Click each card and choose what to do!</span>';
-}
-
-// ── DEBRIEF BUTTON (replaces old report bar) ──────────────────
-function renderDebriefButton(){
-  document.getElementById('toolBar').innerHTML=
-    `<button class="btn btn-g btn-orb" style="flex:1;padding:12px;font-size:14px;letter-spacing:1px;" onclick="openDebrief()">📋 MISSION DEBRIEF &amp; REPORT →</button>`;
-}
-
-// Opened by child clicking the debrief button — captures modId RIGHT NOW, no timer race
-function openDebrief(){
-  const savedId=GS.modId;
-  const savedScenario=GS.scenario?[...GS.scenario]:[];
-  GS.debriefModId=savedId;
-  GS.plenReportDone=false;GS.plenQuizAnswered=0;
-  // Remove button immediately so it cannot be clicked again
-  document.getElementById('toolBar').innerHTML='<span class="bhint">📋 Debrief open — see the right panel!</span>';
-  showResults(savedId);
-  const emailEl=document.querySelector('.eitem.sel');
-  if(emailEl){emailEl.classList.add('done');emailEl.classList.remove('sel','unread');}
-  GS.active=false;setSim('READY');setStep(0);clearGlows();
-  showPlenary(savedId,savedScenario);
-}
-
-// Legacy doReport kept only as internal helper called by plenReport()
-function doReport(ok,correct,savedId){
-  if(ok){try{SFX.correct();}catch(e){}/*vox*/addXP(30);gcMod(savedId,'reportCorrect');}
-  else{loseH('Wrong team');addXP(-15);/*vox*/gcMod(savedId,'reportWrong');}
-}
-
-// ── RESULTS ───────────────────────────────────────────────────
-function showResults(savedId){
-  const mod=MODULES[savedId],sc=GS.scenario;
-  if(!mod||!sc)return;
-  let h=`<div class="rtit">${esc(mod.name)}</div><div class="rmod" style="font-size:13px;color:var(--cyn);margin-bottom:12px;">MISSION ${GS.round} COMPLETE</div>`;
-  sc.forEach(item=>{
-    const ao=(item.userAction===item.actionAnswer);
-    const extra=(savedId==='phishingModule'&&item.clue&&item.isPhish)?`<div class="rnote" style="color:var(--amb);">👀 The clue: ${esc(item.clue)}</div>`:'';
-    h+=`<div class="rc ${ao?'ok':'bad'}"><h3>${ao?'✓':'✗'} ${esc(item.name)}</h3>
-      ${extra}
-      <div class="rr"><span>Correct:</span><code>${item.actionAnswer}</code></div>
-      <div class="rr"><span>You said:</span><code>${item.userAction||'?'}</code></div>
-      <div class="rnote">${esc(item.notes||'')}</div></div>`;
-  });
-  h+=mod.completionText('x',sc);
-  // Report result appended later by plenReport() once answered
-  h+=`<div id="reportResultSlot"></div>`;
-  document.getElementById('resultsView').innerHTML=h;showTab('R');
-  // endgame triggered by closePlenary() after quiz completes — not here
-}
-
-// ── DDOS GRAPH ────────────────────────────────────────────────
-function animGraph(data,base,cur){
-  const cv=document.getElementById('graphCanvas');if(!cv)return;
-  if(GS.gfr){cancelAnimationFrame(GS.gfr);GS.gfr=null;}
-  let prog=0;const pts=data.length,bad=cur>base*3;
-  function f(){
-    const ctx=cv.getContext('2d');const w=cv.clientWidth,h=cv.clientHeight;
-    if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
-    ctx.clearRect(0,0,w,h);const mx=Math.max(...data,base)*1.15;
-    ctx.strokeStyle='rgba(0,255,65,.07)';ctx.lineWidth=.5;
-    for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(0,i/4*h);ctx.lineTo(w,i/4*h);ctx.stroke();}
-    const by=h-(base/mx)*h*.9-4;
-    ctx.setLineDash([5,5]);ctx.strokeStyle='rgba(0,255,65,.3)';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(0,by);ctx.lineTo(w,by);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='rgba(0,255,65,.4)';ctx.font='9px Share Tech Mono';ctx.fillText('AVG: '+base.toLocaleString(),4,by-3);
-    const n=Math.max(2,Math.round(prog*pts));
-    ctx.beginPath();
-    data.slice(0,n).forEach((v,i)=>{const x=(i/(pts-1))*w,y=h-(v/mx)*h*.9-4;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
-    ctx.strokeStyle=bad?'#ff0040':'#00ff41';ctx.lineWidth=2;ctx.shadowColor=bad?'#ff0040':'#00ff41';ctx.shadowBlur=10;ctx.stroke();ctx.shadowBlur=0;
-    const lx=((n-1)/(pts-1))*w;ctx.lineTo(lx,h);ctx.lineTo(0,h);ctx.fillStyle=bad?'rgba(255,0,64,.06)':'rgba(0,255,65,.04)';ctx.fill();
-    if(prog<1){prog=Math.min(1,prog+.04);GS.gfr=requestAnimationFrame(f);}
-  }
-  GS.gfr=requestAnimationFrame(f);
-}
-
-// ── PHISHING EXCEPTION (does NOT count as a round) ────────────
-// Large pool of varied phishing scenarios — different tells each time
-const PHISH_POOL = [
-  // Typo domains — letter swap
-  { domain:'go0gle.com',     real:'google.com',     subjects:['URGENT: Google Account Suspended','Security Alert: Unusual Sign-In','Your Google Account Needs Verification'], body:(d)=>`Dear Google User,\n\nWe detected suspicious activity on your Google account. Your account will be permanently deleted in 24 hours unless you verify your identity:\n\nhttp://accounts.${d}/verify\n\nGoogle Security Team` },
-  { domain:'micros0ft.com',  real:'microsoft.com',  subjects:['Microsoft 365: Your Licence Has Expired','Action Required: Verify Your Microsoft Account','Your OneDrive Has Been Locked'], body:(d)=>`Dear User,\n\nYour Microsoft 365 licence has expired. To avoid losing access to your files and email, please renew immediately:\n\nhttp://account.${d}/renew\n\n— Microsoft Support` },
-  { domain:'arnazon.co.uk',  real:'amazon.co.uk',   subjects:['Your Amazon Order Has Been Cancelled','Prime Membership Renewal Failed','Unusual Activity on Your Account'], body:(d)=>`Dear Customer,\n\nWe were unable to process your recent payment. Your account has been temporarily suspended. To restore access:\n\nhttp://signin.${d}/restore\n\n— Amazon` },
-  { domain:'paypa1.com',     real:'paypal.com',     subjects:['PayPal: Suspicious Activity Detected','Your PayPal Account Has Been Limited','Action Required: Confirm Your Identity'], body:(d)=>`Dear PayPal Customer,\n\nWe noticed unusual activity on your account. To protect you, we\'ve temporarily limited your account.\n\nResolve here: http://secure.${d}/resolve\n\n— PayPal Security` },
-  { domain:'netfl1x.com',    real:'netflix.com',    subjects:['Netflix: Payment Failed','Your Netflix Account Has Been Suspended','Update Your Netflix Payment Details'], body:(d)=>`Dear Member,\n\nWe were unable to process your latest payment. Your account will be suspended tonight unless you update your billing information:\n\nhttp://${d}/update-payment\n\n— Netflix` },
-  { domain:'app1e.com',      real:'apple.com',      subjects:['Apple ID: Sign-In Attempt From New Device','Your Apple ID Has Been Locked','iCloud Storage Full — Upgrade Now'], body:(d)=>`Dear Apple Customer,\n\nYour Apple ID was used to sign in from a new device in an unusual location. If this wasn\'t you, secure your account now:\n\nhttp://appleid.${d}/verify\n\n— Apple Support` },
-  { domain:'bbc-alerts.net', real:'bbc.co.uk',      subjects:['BBC: Update Your Subscription Details','BBC iPlayer: Action Required'], body:(d)=>`Dear BBC Viewer,\n\nYour BBC account requires re-verification. Please confirm your details to continue accessing BBC iPlayer:\n\nhttp://${d}/verify\n\n— BBC Team` },
-  // Completely wrong domain
-  { domain:'company.helpdesk.xyz', real:'company.com', subjects:['Your Password Expires in 1 Hour — Reset Now','URGENT: Account Access Suspended'], body:(d)=>`Dear Employee,\n\nYour network password is due to expire. To avoid being locked out, reset it immediately:\n\nhttp://${d}/password-reset\n\nIT Support` },
-  { domain:'company-portal.info',  real:'company.com', subjects:['HR: Important Update to Your Employment Record','Payroll: Direct Debit Change Required'], body:(d)=>`Dear Team Member,\n\nHR requires you to update your personal details in our system. Please log in and confirm your information by end of day:\n\nhttp://${d}/update\n\nHR Department` },
-  // CEO fraud
-  { domain:'company-ceo.net', real:'company.com', subjects:['Confidential — Please Handle Urgently','Quick Favour — Confidential'], body:(d)=>`Hi,\n\nI need your help with something urgent and confidential. I\'m in a meeting but need you to arrange a bank transfer of £6,200 to a new supplier today.\n\nPlease don\'t discuss with anyone else — reply directly to me.\n\nThanks` },
-  // Lookalike with extra characters
-  { domain:'support-paypal.com',  real:'paypal.com',   subjects:['PayPal: Please Update Your Details','Your PayPal Balance Has Been Frozen'], body:(d)=>`Dear PayPal User,\n\nYour account has an issue that requires immediate attention. Please verify your account details to avoid suspension:\n\nhttp://${d}/verify\n\n— PayPal` },
-  { domain:'amazon.customer-service.cc', real:'amazon.co.uk', subjects:['Amazon: Delivery Problem With Your Order','Your Package Could Not Be Delivered'], body:(d)=>`Dear Customer,\n\nWe attempted to deliver your parcel today but were unable to complete delivery. Please confirm your address and pay a small redelivery fee:\n\nhttp://${d}/redeliver\n\n— Amazon Delivery` },
-];
-
-function loadPhish(){
-  const tmpl = pick(PHISH_POOL);
-  const subject = pick(tmpl.subjects);
-  const body = tmpl.body(tmpl.domain);
-  // Vary the from-address format
-  const fromPrefixes = ['noreply','security','alert','support','accounts','no-reply','info','service'];
-  const sender = `${pick(fromPrefixes)}@${tmpl.domain}`;
-  const email = {id:Date.now(), sender, subject, body, modId:null, phish:true};
-  GS.active=true; GS.pendingEmail=email;
-  setSim('⚠ SUSPICIOUS EMAIL');
-  addToInbox(email);
-  toast('New email — be careful before you act!','warn');
-}
-
-// ═══════════════════════════════════════════════════════════════
-// IP TRACE — TACTICAL MAP + PER-HOP CHALLENGES
-// Exception: does NOT count as a round
-// ═══════════════════════════════════════════════════════════════
-
-const CITIES=[
-  {city:'London',      lat:51.5,  lon:-0.12, country:'UK'},
-  {city:'Amsterdam',   lat:52.37, lon:4.89,  country:'NL'},
-  {city:'Frankfurt',   lat:50.11, lon:8.68,  country:'DE'},
-  {city:'Moscow',      lat:55.75, lon:37.62, country:'RU'},
-  {city:'Beijing',     lat:39.9,  lon:116.4, country:'CN'},
-  {city:'Seoul',       lat:37.57, lon:126.98,country:'KR'},
-  {city:'Tokyo',       lat:35.68, lon:139.69,country:'JP'},
-  {city:'São Paulo',   lat:-23.55,lon:-46.63,country:'BR'},
-  {city:'Lagos',       lat:6.52,  lon:3.37,  country:'NG'},
-  {city:'Kyiv',        lat:50.45, lon:30.52, country:'UA'},
-  {city:'Tehran',      lat:35.69, lon:51.39, country:'IR'},
-  {city:'Istanbul',    lat:41.01, lon:28.95, country:'TR'},
-  {city:'Hanoi',       lat:21.03, lon:105.83,country:'VN'},
-  {city:'Bucharest',   lat:44.43, lon:26.1,  country:'RO'},
-  {city:'Nairobi',     lat:-1.29, lon:36.82, country:'KE'},
-  {city:'Buenos Aires',lat:-34.6, lon:-58.38,country:'AR'},
-  {city:'Dubai',       lat:25.2,  lon:55.27, country:'UAE'},
-  {city:'Sydney',      lat:-33.87,lon:151.21,country:'AU'},
-  {city:'Chicago',     lat:41.88, lon:-87.63,country:'US'},
-  {city:'Johannesburg',lat:-26.2, lon:28.04, country:'ZA'},
-];
-
-// ─────────────────────────────────────────────────────────────────────
-// TACTICAL MAP — 2D equirectangular projection radar-style display
-// Nothing ever goes off-screen. IP always shown in fixed panel.
-// ─────────────────────────────────────────────────────────────────────
-
-// Continent polygons as [lon, lat] pairs for equirectangular projection
-
-
-function presentHopChallenge(hopIdx){
-  try{SFX.sonar();}catch(ex){}
-  const s=GS.ip;const hop=s.hops[hopIdx];
-  s.waitingForAnswer=true;s.currentChallengeHop=hopIdx;
-  s.hopStartTime=Date.now();
-  const isFinal=(hopIdx===s.hops.length-1);
-
-  document.getElementById('ipCurrentIP').textContent=hop.ip;
-  document.getElementById('ipCurrentCity').textContent='📍 '+hop.city+', '+hop.country;
-
-  const statMsg = isFinal ? '⚠ SOURCE FOUND! Lock them down!' :
-                  hop.hard  ? '🧐 Read carefully — these are very similar!' :
-                               '🛑 Pick the correct IP:';
-  document.getElementById('ipStat').textContent=statMsg;
-
-  const opts=buildHopOptions(hop);
-  const cont=document.getElementById('ipEasyOpts');cont.innerHTML='';
-  opts.forEach(ip=>{
-    const b=document.createElement('button');
-    b.className='ipeasy'+(hop.hard?' ipeasy-hard':'');
-    b.textContent=ip;
-    b.onclick=()=>handleHopAnswer(ip===hop.ip,hop,isFinal);
-    cont.appendChild(b);
-  });
-  document.getElementById('ipEasyOpts').style.display='flex';
-  startMapPulse();
-}
-
-function handleHopAnswer(correct,hop,isFinal){
-  stopMapPulse();
-  document.getElementById('ipEasyOpts').innerHTML='';
-  const s=GS.ip;
-  const elapsed=Date.now()-(s.hopStartTime||0);
-
-  if(!correct){
-    clearInterval(s.ti);
-    try{SFX.bgStop();}catch(ex){}
-    // First failure: offer a retry; second failure: actually fail
-    if(!s.usedRetry){
-      showIPRetryModal('Wrong IP for '+hop.city+'! The correct answer was: '+hop.ip);
-    } else {
-      endTrace(false,'Wrong IP for '+hop.city+'! Correct was: '+hop.ip);
-    }
-    return;
-  }
-
-  s.waitingForAnswer=false;
-  try{SFX.correct();}catch(ex){}
-
-  if(isFinal){
-    clearInterval(s.ti);
-    try{SFX.bgStop();}catch(ex){}
-    endTrace(true,'');
-  } else {
-    // Check if we should add more hops (student doing well, about to finish early)
-    const hopsLeft = s.hops.length - 1 - s.cur;
-    if(s.timer > 28 && hopsLeft <= 1 && s.hops.length < 10){
-      const extras = genHops(2);
-      s.hops.push(...extras);
-      // Re-mark last 2 as hard
-      s.hops.forEach((h,i) => { h.hard = i >= s.hops.length - 2; });
-      gcMsg('priya',`⚡ They know we\'re onto them — rerouting through ${s.hops.length} servers now!`,200);
-      gcMsg('marcus',`Clever hacker — but we\'re cleverer! ${s.hops.length} hops total. Don\'t lose them! 💻`,900);
-    }
-    if(elapsed<2000){
-      triggerTraceGlitch(()=>advanceHop());
-    } else {
-      document.getElementById('ipStat').textContent='✓ Got them! Tracking next location…';
-      setTimeout(()=>advanceHop(),400);
-    }
-  }
-}
-
-// Glitch effect — fires when child answers too quickly (under 2s)
-// Story: the hacker spotted them and tried to throw off the trace
-function triggerTraceGlitch(onResume){
-  const statEl=document.getElementById('ipStat');
-  const cityEl=document.getElementById('ipCurrentCity');
-  const ipEl  =document.getElementById('ipCurrentIP');
-  const duration=2500+Math.random()*1500; // 2.5–4 seconds
-
-  statEl.style.color='var(--amb)';
-  statEl.textContent='⚡ SIGNAL LOST — HACKER DETECTED TRACE!';
-  cityEl.textContent='⚠ REROUTING…';
-  try{SFX.alert();}catch(e){}
-
-  // Rapidly flash scrambled IPs and messages
-  let tick=0;
-  const glitchInt=setInterval(()=>{
-    tick++;
-    ipEl.textContent = tick%2===0 ? '????.????' : rndIP();
-    cityEl.textContent=tick%2===0 ? '⚠ REROUTING…' : '⚡ DECOY DETECTED…';
-  },280);
-
-  setTimeout(()=>{
-    clearInterval(glitchInt);
-    statEl.style.color='';
-    statEl.textContent='✅ Signal restored — resuming trace…';
-    cityEl.textContent='Back on track!';
-    ipEl.textContent='—';
-    setTimeout(()=>onResume(),600);
-  },duration);
-}
-
-// ══════════════════════════════════════════════════════════════
-// NEON CANVAS MAP — IP Trace
-// ══════════════════════════════════════════════════════════════
-
-// Simplified continent polygons [lon, lat] — enough detail to be
-// recognisable, not so much they slow down canvas rendering
-
-// ── NEON MAP — self-contained, no external dependencies ──────
-const TRACER = { animId: null };
-
-function mapProj(lat, lon, w, h) {
-  return { x: ((lon + 180) / 360) * w, y: ((90 - lat) / 180) * h };
-}
-
-function resizeMapCanvas(cv) {
-  // Lock to the SVG viewBox (720x360) so canvas dots align exactly with the
-  // SVG continents. The canvas is stretched by CSS to fill the wrapper, exactly
-  // like the SVG (preserveAspectRatio=none), so both share one coordinate space.
-  if (cv.width !== 720 || cv.height !== 360) { cv.width = 720; cv.height = 360; }
-}
-
-function drawNeonMap(cv, trail, currentHop){
-  try{
-    var ctx=cv.getContext('2d');
-    var w=cv.width||720, h=cv.height||360;
-    // Everything drawn on ONE canvas — continents AND dots share the same
-    // coordinate system, so they can never be out of alignment.
-    ctx.fillStyle='#010d03'; ctx.fillRect(0,0,w,h);
-    // Simple recognisable continent blobs [lon,lat] → canvas
-    var P=function(lat,lon){return {x:((lon+180)/360)*w, y:((90-lat)/180)*h};};
-    var blobs=[
-      // North America
-      [[72,-160],[60,-165],[48,-125],[30,-115],[16,-92],[9,-80],[25,-80],[45,-65],[60,-65],[72,-95]],
-      // South America
-      [[10,-78],[5,-50],[-10,-37],[-23,-43],[-40,-62],[-54,-68],[-40,-73],[-18,-70],[0,-80]],
-      // Europe
-      [[38,-9],[44,0],[40,18],[38,28],[55,28],[70,20],[60,5],[44,-9]],
-      // Africa
-      [[16,-18],[5,5],[12,42],[12,51],[-12,40],[-35,20],[-35,12],[-5,-15],[16,-18]],
-      // Asia
-      [[70,30],[72,90],[68,140],[20,120],[2,104],[8,78],[22,60],[42,38],[60,30]],
-      // Australia
-      [[-12,130],[-20,150],[-38,148],[-35,115],[-22,114]],
-      // UK
-      [[50,-6],[58,-2],[58,-6],[52,-8]],
-      // Greenland
-      [[77,-50],[82,-30],[72,-22],[68,-45]],
-      // Japan
-      [[34,135],[42,141],[36,138]],
+// ─────────────────────────────────────────────────────────────
+// MODULE 1: DDoS ATTACK
+// ─────────────────────────────────────────────────────────────
+MODULES.ddos = {
+  id: 'ddos',
+  name: 'DDoS ATTACK',
+  emailSender: () => pick(['monitor@syswatch.net','alerts@networkops.io','noc@infrasec.com']),
+  emailSubject: () => pick(['Unusual Traffic Alert','Network Load Notice','Traffic Spike Detected','Please Review: Traffic Anomaly']),
+  emailBody(scenario) {
+    const bodies = [
+      `Hi,\n\nOur network is getting a LOT of visitors right now — way more than normal. It might be an attack, or it might just be a busy day.\n\nCan you check the traffic and let us know what's happening?\n\nThanks,\nSysWatch`,
+      `Hi Agent,\n\nTraffic alert! Some of our services are getting hammered with requests. Please load the Network Traffic Monitor and check if it looks like an attack.\n\nNetwork Ops`,
+      `Hello,\n\nWe've had reports that the website is running really slowly. The traffic numbers look odd. Can you investigate using the Network Traffic Monitor?\n\nCheers`
     ];
-    ctx.lineWidth=1.4; ctx.strokeStyle='#00cc33'; ctx.fillStyle='rgba(0,42,8,0.85)';
-    ctx.shadowColor='#00ff41'; ctx.shadowBlur=5;
-    blobs.forEach(function(poly){
-      ctx.beginPath();
-      poly.forEach(function(pt,idx){var p=P(pt[0],pt[1]); idx===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);});
-      ctx.closePath(); ctx.fill(); ctx.stroke();
+    return pick(bodies);
+  },
+  tools: {
+    correct: 'Network Traffic Monitor',
+    decoys: ['Password Audit Tool','Email Header Analyser','DNS Lookup Tool','System Log Viewer','Firewall Rules Editor']
+  },
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const pool=[
+      {name:'Homepage',     purpose:'Main website people visit first'},
+      {name:'Login Page',   purpose:'Where people sign in'},
+      {name:'Image Loader', purpose:'Loads pictures and videos'},
+      {name:'Search Bar',   purpose:'Lets people search the site'},
+      {name:'Shop Checkout',purpose:'Where people pay for things'},
+      {name:'Admin Area',   purpose:'Staff-only management area'},
+      {name:'Video Stream', purpose:'Plays videos on the website'},
+      {name:'API Gateway',  purpose:'Connects apps to the website'},
+      {name:'CDN Server',   purpose:'Delivers images and files fast'},
+    ];
+    const chosen=shuffle(pool).slice(0,numItems);
+    const rag=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    return chosen.map((svc,i)=>{
+      const base=randInt(150,600);
+      if(rag[i]==='R'){const m=randInt(11,35);const cur=base*m;return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:Math.round(cur),ragAnswer:'R',actionAnswer:'block',notes:`${m}× higher than normal.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,Math.round(cur))};}
+      else if(rag[i]==='A'){const m=randFloat(3.2,9.5,1);const cur=Math.round(base*m);return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:cur,ragAnswer:'A',actionAnswer:'throttle',notes:`${m}× the usual amount.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,cur)};}
+      else if(i===edgeAt){const m=randFloat(1.8,2.4,1);const cur=Math.round(base*m);return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:cur,ragAnswer:'G',actionAnswer:'ignore',notes:`${m}× usual — today's product launch is bringing real visitors.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,cur)};}
+      else{const cur=jitter(base,0.1);return {name:svc.name,purpose:svc.purpose,avgHitsMin:base,currentHitsMin:Math.round(cur),ragAnswer:'G',actionAnswer:'ignore',notes:`${Math.round(cur).toLocaleString()}/min — close to the ${base.toLocaleString()}/min average.`,handled:false,userRag:null,userAction:null,graphData:this._generateGraphHistory(base,Math.round(cur))};}
     });
-    ctx.shadowBlur=0;
-    // Trail
-    if(trail&&trail.length>1){
-      ctx.setLineDash([6,4]); ctx.strokeStyle='rgba(255,100,0,0.6)'; ctx.lineWidth=1.6;
-      ctx.beginPath();
-      trail.forEach(function(hop,idx){var p=P(hop.lat,hop.lon); idx===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);});
-      ctx.stroke(); ctx.setLineDash([]);
-      for(var k=0;k<trail.length-1;k++){
-        var pv=P(trail[k].lat,trail[k].lon);
-        ctx.beginPath(); ctx.arc(pv.x,pv.y,5,0,Math.PI*2);
-        ctx.fillStyle='#ff6600'; ctx.shadowColor='#ff4400'; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+  },
+  _generateGraphHistory(baseline, current) {
+    const pts = [];
+    for (let i = 0; i < 20; i++) {
+      const t = i / 19;
+      const spike = t > 0.6 ? baseline + (current - baseline) * Math.pow((t - 0.6) / 0.4, 2) : baseline;
+      pts.push(Math.round(jitter(spike, 0.08)));
+    }
+    return pts;
+  },
+  reportTeams: {
+    correct: 'Network Operations Centre (NOC)',
+    incorrect: 'Human Resources Department'
+  },
+  completionText(mode, scenario) {
+    const attacked = scenario.filter(s => s.ragAnswer !== 'G').length;
+    if (attacked === 0) {
+      return `<div class="rc ok"><h3>✓ All clear — everything looked normal!</h3><p>Good job checking everything carefully even when there's nothing wrong. Real cyber detectives always check, even when it's all fine!</p></div>`;
+    }
+    const top = scenario.find(s => s.ragAnswer === 'R') || scenario.find(s => s.ragAnswer === 'A');
+    const ratio = top ? Math.round(top.currentHitsMin / top.avgHitsMin) : '??';
+    return `<div class="rc info"><h3>DDoS ATTACK — KEY FACTS</h3>
+    <p>The traffic was ${ratio}x higher than normal — like ${ratio * 100} people trying to get through one door at once!</p>
+    <p style="margin-top:8px;">Over 10x normal = BLOCK (Red). 3–10x = THROTTLE (Amber). Normal = IGNORE (Green).</p></div>`;
+  },
+  plenary: {
+    reportHint: 'This was a network traffic attack — which team looks after the network?',
+    analogy:      '🍕 Like 1,000 pizzas arriving at once that nobody ordered — the street gets blocked and real people can\'t get in.',
+    whatHappened: 'Hackers sent thousands of fake visitors to flood our website until it broke.',
+    keyMove:      'Over 10× normal = Block. Between 3–10× = Slow it down. Normal = Leave it alone.',
+    realWorld:    'Ever tried to load a game or website and it just... wouldn\'t load? Sometimes that\'s a DDoS!',
+    quiz: [
+      { q: 'What does a DDoS attack do?', options: ['Steals your password 🔑', 'Floods a website until it breaks 🌊', 'Deletes your files 🗑️'], correct: 1 },
+      { q: 'Traffic is 15× higher than normal. What do you do?', options: ['Leave it — probably fine ✅', 'Block it 🚫', 'Restart the computer 💻'], correct: 1 },
+      { q: 'What is a botnet?', options: ['A type of antivirus 🛡️', 'A robot that cleans computers 🤖', 'Thousands of hacked computers used to attack at once 💻'], correct: 2 },
+      { q: 'Traffic is 2× normal on a day with a big product launch. What should you do?', options: ['Block it straight away 🚫', 'Investigate — it might be real traffic 🔍', 'Ignore it completely ✅'], correct: 1 },
+      { q: 'What does DDoS stand for?', options: ['Distributed Denial of Service', 'Digital Data on Servers', 'Direct Download of Software'], correct: 0 },
+      { q: 'Why do attackers use thousands of computers in a DDoS?', options: ["To make the attack look more legitimate 🎭","So it's harder to block — you can't just ban one IP 🌐","To save money on internet bills 💰"], correct: 1 },
+      { q: 'What does "throttling" traffic mean?', options: ["Blocking it completely 🚫","Slowing it down so the server can cope ⚡","Speeding it up 🏎️"], correct: 1 },
+      { q: 'Why are DDoS attacks hard to stop?', options: ["Because the traffic looks real and comes from everywhere 🌍","Because they happen at night 🌙","Because computers are slow 🐢"], correct: 0 },
+      { q: 'What should you protect MOST during a DDoS?', options: ["The coffee machine ☕","Critical services like login pages and payments 💳","The office printer 🖨️"], correct: 1 },
+    ]
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 2: MALWARE INFECTION
+// ─────────────────────────────────────────────────────────────
+MODULES.malware = {
+  id: 'malware',
+  name: 'MALWARE INFECTION',
+  emailSender: () => pick(['endpoint@secops.net','av-alerts@defender.io','siem@threatwatch.com']),
+  emailSubject: () => pick(['Endpoint Alert: Suspicious Process','AV Detection Report','Unusual Process Activity Flagged','Security Alert - Action Required']),
+  emailBody(scenario) {
+    return pick([
+      `Hi,\n\nSome programs running on our computers are looking a bit weird. Can you check them out using the Process Monitor?\n\nSome might be fine, some might be bad software hiding on our system.\n\nThanks,\nSecurity Team`,
+      `Hello Agent,\n\nWe've spotted some unusual programs running. Some have strange names. Some are using loads of CPU (computer power).\n\nPlease check each one using the Process Monitor.\n\nCheers,\nDefender Team`,
+      `Hi,\n\nAlert! Something odd might be running on our computers. Load the Process Monitor and check if any programs look suspicious.\n\nRemember: if the name looks weird or the CPU is really high — that's a red flag!\n\nSecurity Ops`
+    ]);
+  },
+  tools: {
+    correct: 'Process Monitor',
+    decoys: ['Network Traffic Monitor','Email Header Analyser','Bandwidth Checker','Firewall Rules Editor','Packet Sniffer']
+  },
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const malNames=['cryptminer.tmp','svch0st.exe','xyzwin32.exe','backdoor_srv.exe','helper32.exe','update_helper.tmp'];
+    const legit=[{name:'svchost.exe',cpuBase:1.2,memBase:48,purpose:'Windows system service'},{name:'chrome.exe',cpuBase:8,memBase:340,purpose:'Google Chrome browser'},{name:'explorer.exe',cpuBase:0.8,memBase:62,purpose:'Windows file explorer'},{name:'msedge.exe',cpuBase:6,memBase:280,purpose:'Microsoft Edge browser'},{name:'antimalware.exe',cpuBase:2.1,memBase:95,purpose:'Windows Defender'},{name:'winlogon.exe',cpuBase:0.4,memBase:18,purpose:'Windows login manager'},{name:'taskhost.exe',cpuBase:0.6,memBase:35,purpose:'Windows task host'}];
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    const items=[];
+    for(let i=0;i<numItems;i++){
+      if(rp[i]==='R'){const nm=pick(malNames);const cpu=randFloat(40,95,1);items.push({name:nm,purpose:'Not a known Windows program',cpu,memMB:randInt(400,1400),networkKBs:randInt(500,5000),ragAnswer:'R',actionAnswer:'quarantine',notes:'Not recognised in the standard program list.',handled:false,userRag:null,userAction:null});}
+      else if(rp[i]==='A'){const p=pick(legit);const cpu=randFloat(72,90,1);items.push({name:p.name,purpose:p.purpose,cpu,memMB:Math.round(jitter(p.memBase,0.15)),networkKBs:randInt(80,300),ragAnswer:'A',actionAnswer:'investigate',notes:`Real program but CPU is quite high right now (${cpu.toFixed(1)}%).`,handled:false,userRag:null,userAction:null});}
+      else if(i===edgeAt){const cpu=randFloat(48,66,1);items.push({name:'WinUpdate.exe',purpose:'Windows Update',cpu,memMB:randInt(400,700),networkKBs:randInt(10,80),ragAnswer:'G',actionAnswer:'ignore',notes:'Windows Update.',handled:false,userRag:null,userAction:null});}
+      else{const p=pick(legit);items.push({name:p.name,purpose:p.purpose,cpu:parseFloat(jitter(p.cpuBase,0.2).toFixed(1)),memMB:Math.round(jitter(p.memBase,0.12)),networkKBs:randInt(0,50),ragAnswer:'G',actionAnswer:'ignore',notes:'Known Windows program.',handled:false,userRag:null,userAction:null});}
+    }
+    return items;
+  },
+  reportTeams: { correct: 'Incident Response Team', incorrect: 'Facilities Management' },
+  completionText(mode, scenario) {
+    return `<div class="rc info"><h3>MALWARE — KEY FACTS</h3>
+    <p>Malware is bad software that hides on your computer. The key clues: <strong>weird names</strong> (especially ones that look ALMOST like real names), <strong>high CPU</strong>, and <strong>high network usage</strong> (secretly sending data).</p>
+    <p style="margin-top:8px;">Remember: high CPU doesn't always mean malware (Windows Update is legit!). Check the NAME first.</p></div>`;
+  },
+  plenary: {
+    reportHint: 'Malware is a security incident — which team responds to those?',
+    analogy:      '🕵️ Like a spy wearing a school uniform — they look like they belong, but they\'re secretly stealing things.',
+    whatHappened: 'Bad software had sneaked onto a computer, hiding inside programs with suspicious or fake names.',
+    keyMove:      'Unknown name = Quarantine. Real name but very high CPU = Investigate. Known and normal = Leave it.',
+    realWorld:    'If your computer suddenly gets really slow for no reason, it might have something hiding on it — tell a grown-up!',
+    quiz: [
+      { q: 'You see "cryptminer.tmp" using 92% CPU. What is it probably doing?', options: ['Running normally ✅', 'Hiding as malware and using your computer\'s power 🔴', 'Just updating Windows 🔄'], correct: 1 },
+      { q: '"WinUpdate.exe" is using 55% CPU. What do you do?', options: ['Quarantine it immediately 🚫', 'Leave it — Windows Update often uses lots of power ✅', 'Turn off the computer 💻'], correct: 1 },
+      { q: 'What is malware?', options: ['A type of computer hardware 🖥️', 'Bad software designed to cause harm 🦠', 'A fast internet connection 📶'], correct: 1 },
+      { q: 'You "quarantine" a program. What does that mean?', options: ['You delete it permanently 🗑️', 'You move it somewhere safe so it can\'t spread 🔒', 'You give it more memory 💾'], correct: 1 },
+      { q: 'Malware sometimes uses low CPU on purpose. Why?', options: ['To make your computer faster ⚡', 'To hide and avoid being spotted 🕵️', 'Because it\'s not doing anything 😴'], correct: 1 },
+      { q: 'What should you do FIRST if you spot malware?', options: ['Delete the whole computer 🗑️', 'Isolate the computer from the network immediately 🔌', 'Tell your friends 📱'], correct: 1 },
+      { q: 'Malware with a name like "svchost.exe" is trying to:', options: ["Help Windows run faster ⚡","Look like a real Windows program to hide 🎭","Update your antivirus 🛡️"], correct: 1 },
+      { q: 'High network usage on an unknown process might mean:', options: ["The internet is slow today 🐌","The program is secretly sending data to a hacker 📤","The video call is buffering 📹"], correct: 1 },
+      { q: 'What is a "trojan horse" type of malware?', options: ["A virus from Greece 🏛️","Software that looks helpful but is secretly harmful 🎁","A type of firewall 🛡️"], correct: 1 },
+    ]
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 3: SQL INJECTION
+// ─────────────────────────────────────────────────────────────
+MODULES.sqli = {
+  id: 'sqli',
+  name: 'SQL INJECTION',
+  emailSender: () => pick(['waf@websec.net','dbmonitor@dataops.io','appsec@platform.com']),
+  emailSubject: () => pick(['WAF Alert: Suspicious Query Strings','Database Anomaly Detected','Potential SQL Injection Attempt','App Security Review Needed']),
+  emailBody() {
+    return pick([
+      `Hi,\n\nOur Web Application Firewall has logged some suspicious query strings hitting our database endpoints. Could you check the Database Query Analyser and see what's going on?\n\nThanks,\nWebSec Team`,
+      `Hello,\n\nWe're seeing some odd patterns in our database request logs. Some could be SQL injection probes. Please investigate and rate each one.\n\nRegards,\nDataOps`,
+      `Hi Agent,\n\nSeveral queries have been flagged by automated monitoring. Please review using the Database Query Analyser and take appropriate action.\n\nApp Security`
+    ]);
+  },
+  tools: {
+    correct: 'Database Query Analyser',
+    decoys: ['Network Traffic Monitor','Process Monitor','Email Header Analyser','Password Audit Tool','VPN Log Viewer']
+  },
+  generateScenario() {
+    const endpoints = [
+      '/api/users/search',
+      '/api/login',
+      '/api/products/filter',
+      '/admin/reports',
+      '/api/orders/lookup',
+      '/api/newsletter/subscribe',
+    ];
+
+    const maliciousPayloads = [
+      `' OR '1'='1`,
+      `'; DROP TABLE users; --`,
+      `1 UNION SELECT username,password FROM admin --`,
+      `' OR 1=1 --`,
+      `admin'--`,
+      `'; EXEC xp_cmdshell('whoami'); --`,
+      `1; SELECT * FROM information_schema.tables --`
+    ];
+    const benignPayloads = [
+      `search=laptop+stand`,
+      `user_id=4821`,
+      `filter=price_asc&category=electronics`,
+      `email=user%40example.com`,
+      `order_id=ORD-00492`,
+      `q=blue+widgets`
+    ];
+
+    const chosen = shuffle(endpoints).slice(0, 5);
+    const numMalicious = randInt(1, 3);
+
+    return chosen.map((ep, i) => {
+      const isMalicious = i < numMalicious;
+      const payload = isMalicious ? pick(maliciousPayloads) : pick(benignPayloads);
+      const requestsPerMin = isMalicious ? randInt(40, 300) : randInt(2, 25);
+      const sourceIPs = isMalicious ? randInt(1, 5) : randInt(10, 200);
+      const statusCodes = isMalicious ? pick(['200 (Success!)', '500 (Error)', '403 (Blocked)']) : '200 (OK)';
+
+      let ragAnswer, actionAnswer;
+      if (isMalicious && payload.includes('DROP') || payload.includes('EXEC')) {
+        ragAnswer = 'R'; actionAnswer = 'block';
+      } else if (isMalicious) {
+        ragAnswer = Math.random() > 0.4 ? 'R' : 'A';
+        actionAnswer = ragAnswer === 'R' ? 'block' : 'investigate';
+      } else {
+        ragAnswer = 'G'; actionAnswer = 'ignore';
       }
-    }
-    // Active hop with pulsing rings
-    if(currentHop){
-      var p=P(currentHop.lat,currentHop.lon);
-      var t=Date.now()/500;
-      for(var r=0;r<3;r++){
-        var rad=10+r*12+Math.sin(t+r*1.2)*4;
-        ctx.beginPath(); ctx.arc(p.x,p.y,rad,0,Math.PI*2);
-        ctx.strokeStyle='rgba(255,50,0,'+(0.4-r*0.12)+')'; ctx.lineWidth=1.5;
-        ctx.shadowColor='#ff3300'; ctx.shadowBlur=8; ctx.stroke();
+
+      return {
+        name: ep,
+        purpose: `${ep.includes('login') ? 'User login' : ep.includes('admin') ? 'Admin panel' : 'API'} endpoint`,
+        payload,
+        requestsPerMin,
+        sourceIPs,
+        statusCodes,
+        ragAnswer, actionAnswer,
+        notes: isMalicious ? 'Contains SQL metacharacters — possible injection attempt.' : 'Looks like normal user activity.',
+        handled: false, userRag: null, userAction: null
+      };
+    });
+  },
+  reportTeams: { correct: 'Application Security Team', incorrect: 'Marketing Department' },
+  completionText(mode, scenario) {
+    return `<div class="result-card"><h3>WHAT IS SQL INJECTION?</h3>
+    <p>Imagine a lock that opens when you say your name. SQL injection is like saying "My name is Bob OR the door is always unlocked" — tricking the lock into opening for anyone.</p>
+    <p style="margin-top:8px;">Attackers type special characters like <code style="color:#00f5ff">' OR '1'='1</code> into login forms or search boxes to trick databases into giving away all their secrets. It's one of the oldest — and most dangerous — web attacks!</p></div>`;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 4: RANSOMWARE
+// ─────────────────────────────────────────────────────────────
+MODULES.ransomware = {
+  id: 'ransomware',
+  name: 'RANSOMWARE',
+  emailSender: () => pick(['backup@dataprotect.net','fileserver@internal.corp','sysadmin@network.local']),
+  emailSubject: () => pick(['File Encryption Alert','URGENT: Backup Integrity Check','File Server Anomaly Detected','Storage Alert - Unusual Activity']),
+  emailBody() {
+    return pick([
+      `Hi,\n\nSomething scary is happening! Files on our computers are being locked and renamed with weird extensions like ".locked" or ".encrypted".\n\nStaff can't open their documents. Please use the File Integrity Monitor to find out which drives are affected!\n\nUrgent — SysAdmin`,
+      `Hello Agent,\n\nFiles are being encrypted (scrambled and locked) on our file servers right now! Someone might be trying to hold our files for ransom.\n\nLoad the File Integrity Monitor quickly and check each drive!\n\nData Protection Team`,
+      `Hi,\n\nFiles are disappearing or being renamed with strange extensions. Our backup system has flagged high write activity. This looks like ransomware — please check every drive immediately!\n\nBackup Systems`
+    ]);
+  },
+  tools: {
+    correct: 'File Integrity Monitor',
+    decoys: ['Network Traffic Monitor','Database Query Analyser','Email Header Analyser','Process Monitor','Wi-Fi Scanner']
+  },
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const drives=[{name:'C:\\ System Drive',purpose:'Operating system and programs'},{name:'D:\\ Documents Drive',purpose:'Staff documents and files'},{name:'E:\\ Backup Share',purpose:'Nightly backup storage'},{name:'F:\\ Media Files',purpose:'Company photos and videos'},{name:'\\\\Server01\\HR',purpose:'HR files and records'},{name:'\\\\Server02\\Finance',purpose:'Finance spreadsheets'},{name:'\\\\NAS01\\Archive',purpose:'Long-term archive storage'},{name:'G:\\ Dev Share',purpose:'Developer code and projects'}];
+    const chosen=shuffle(drives).slice(0,numItems);
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    return chosen.map((d,i)=>{
+      const total=randInt(1200,45000);
+      if(rp[i]==='R'){const pct=randFloat(28,80)/100;const enc=Math.round(total*pct);const ext=pick(['.locked','.encrypted','.WNCRY','.cerber','.crypted']);return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:enc,newExtensions:ext,writeOpsMin:randInt(2000,8000),ragAnswer:'R',actionAnswer:'isolate',notes:`${Math.round(pct*100)}% of files encrypted. Extension: "${ext}".`,handled:false,userRag:null,userAction:null};}
+      else if(rp[i]==='A'){const enc=Math.round(total*randFloat(0.5,4)/100);const ext=pick(['.locked','.encrypted','.WNCRY','.zepto']);return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:enc,newExtensions:ext,writeOpsMin:randInt(300,900),ragAnswer:'A',actionAnswer:'investigate',notes:`${enc.toLocaleString()} files now have a "${ext}" extension.`,handled:false,userRag:null,userAction:null};}
+      else if(i===edgeAt){return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:Math.round(total*randFloat(0.1,0.3)/100),newExtensions:'.bak',writeOpsMin:randInt(600,3500),ragAnswer:'G',actionAnswer:'ignore',notes:'Extension: .bak — this is just a backup file. Normal for a backup drive!',handled:false,userRag:null,userAction:null};}
+      else{return {name:d.name,purpose:d.purpose,totalFiles:total,encryptedFiles:Math.round(total*randFloat(0.1,1)/100),newExtensions:'None',writeOpsMin:randInt(5,55),ragAnswer:'G',actionAnswer:'ignore',notes:'',handled:false,userRag:null,userAction:null};}
+    });
+  },
+  reportTeams: { correct: 'Incident Response & Business Continuity Team', incorrect: 'Customer Service Team' },
+  completionText(mode, scenario) {
+    return `<div class="rc info"><h3>RANSOMWARE — KEY FACTS</h3>
+    <p>Ransomware locks your files using a secret code. The clues: <strong>suspicious new file extensions</strong> (.locked, .encrypted), <strong>very high write operations</strong>, and <strong>lots of files affected</strong>. Watch out for the backup drive edge case — ".bak" on a backup drive is NORMAL!</p></div>`;
+  },
+  plenary: {
+    reportHint: 'Ransomware is a major emergency — which team handles big security incidents and keeps the business running?',
+    analogy:      '🔒 Like someone putting a padlock on your bedroom and saying "pay up if you want your stuff back!"',
+    whatHappened: 'Ransomware scrambled files on our drives so nobody could open them, hoping we\'d pay money for the key.',
+    keyMove:      'Suspicious extension + lots of files = Isolate the drive fast. Just a few files affected = Investigate. Normal backup activity (.bak) = Leave it.',
+    realWorld:    'Ransomware has locked schools, hospitals, and businesses. Backing up your files means the hackers can\'t win!',
+    quiz: [
+      { q: 'Files on a drive now end in ".locked". What does that mean?', options: ['They\'ve been backed up safely 💾', 'They\'ve been encrypted by ransomware 🔴', 'The drive is full 📦'], correct: 1 },
+      { q: 'The backup drive has lots of ".bak" files. What do you do?', options: ['Isolate it immediately! 🚫', 'Leave it — ".bak" is just a backup file ✅', 'Delete all the .bak files 🗑️'], correct: 1 },
+      { q: 'What does encryption mean?', options: ['Making files bigger 📂', 'Scrambling data so it can\'t be read without a key 🔑', 'Copying files to another drive 💿'], correct: 1 },
+      { q: 'Why is backing up your files important?', options: ['It makes your computer faster ⚡', 'If ransomware hits, you still have copies 💾', 'It stops all viruses from getting in 🛡️'], correct: 1 },
+      { q: 'Should you pay a ransom to get your files back?', options: ['Yes — they always keep their word 💰', 'No — paying doesn\'t guarantee you get your files back 🚫', 'Only pay half of it 🤔'], correct: 1 },
+      { q: 'How does ransomware usually arrive on a computer?', options: ['Through the power socket 🔌', 'Via phishing emails or infected downloads 📧', 'Over the telephone 📞'], correct: 1 },
+      { q: 'What does "isolating" a drive mean?', options: ['Putting it in the freezer ❄️', 'Disconnecting it so the ransomware can\'t spread further 🔌', 'Making it run faster ⚡'], correct: 1 },
+      { q: 'Why does ransomware change file extensions like ".locked"?', options: ['To organise your files better 📁', 'To signal the files have been encrypted and are now unusable 🔒', 'To save disk space 💾'], correct: 1 },
+      { q: 'What makes a good ransomware defence?', options: ['Having a recent backup stored separately 💾', 'Paying quickly 💰', 'Restarting the computer 🔄'], correct: 0 },
+    ]
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 5: PHISHING CREDENTIAL HARVEST
+// ─────────────────────────────────────────────────────────────
+MODULES.phishingHarvest = {
+  id: 'phishingHarvest',
+  name: 'CREDENTIAL HARVESTING',
+  emailSender: () => pick(['siem@identwatch.net','auth@accessops.io','cloudwatch@sso.corp']),
+  emailSubject: () => pick(['Auth Log Alert: Multiple Failed Logins','Suspicious Login Activity','Credential Stuffing Attempt Detected','Account Security Alert']),
+  emailBody() {
+    return pick([
+      `Hi,\n\nWe've seen an unusual spike in failed authentication attempts across several accounts. This could indicate a credential stuffing or phishing harvest attack. Please review using the Authentication Log Viewer.\n\nIdentity Watch`,
+      `Hello,\n\nMultiple accounts have been flagged for suspicious login patterns. Some may have been compromised. Load the Auth Log Viewer and assess each account's activity.\n\nAccess Ops`,
+      `Hi Agent,\n\nOur SSO system detected thousands of login failures in a short window. Someone may be trying stolen credentials from a data breach. Investigate immediately.\n\nCloudWatch`
+    ]);
+  },
+  tools: {
+    correct: 'Authentication Log Viewer',
+    decoys: ['Network Traffic Monitor','File Integrity Monitor','DNS Lookup Tool','Email Header Analyser','Bandwidth Checker']
+  },
+  generateScenario() {
+    const accounts = [
+      { name: 'j.smith@company.com', role: 'Sales Manager' },
+      { name: 'admin@company.com', role: 'System Administrator' },
+      { name: 'ceo@company.com', role: 'Chief Executive' },
+      { name: 'h.patel@company.com', role: 'Finance Officer' },
+      { name: 'service.account@company.com', role: 'Automated Service Account' },
+      { name: 'l.chen@company.com', role: 'Developer' },
+      { name: 'reception@company.com', role: 'Receptionist' },
+    ];
+
+    const chosen = shuffle(accounts).slice(0, 5);
+    const attackedCount = randInt(1, 3);
+
+    return chosen.map((acc, i) => {
+      const isAttacked = i < attackedCount;
+      const isCompromised = isAttacked && Math.random() > 0.5;
+
+      const failedLogins = isAttacked ? randInt(150, 4000) : randInt(0, 8);
+      const successfulLogins = isCompromised ? randInt(1, 5) : randInt(1, 15);
+      const uniqueIPs = isAttacked ? randInt(50, 500) : randInt(1, 3);
+      const geoLocations = isAttacked ? randInt(8, 40) : randInt(1, 2);
+      const timeSpanMins = isAttacked ? randInt(2, 20) : randInt(60, 480);
+
+      let ragAnswer, actionAnswer;
+      if (isCompromised) {
+        ragAnswer = 'R'; actionAnswer = 'lockAccount';
+      } else if (isAttacked) {
+        ragAnswer = 'A'; actionAnswer = 'forceReset';
+      } else {
+        ragAnswer = 'G'; actionAnswer = 'ignore';
       }
-      ctx.beginPath(); ctx.arc(p.x,p.y,7,0,Math.PI*2);
-      ctx.fillStyle='#ff3300'; ctx.shadowColor='#ff3300'; ctx.shadowBlur=24; ctx.fill(); ctx.shadowBlur=0;
-      ctx.font='bold 11px monospace'; ctx.fillStyle='rgba(255,210,190,0.95)';
-      ctx.fillText(currentHop.city, p.x+11, p.y+4);
-    }
-  }catch(e){console.warn('Map draw error:',e);}
-}
 
-
-
-function drawTacticalMapIdle(){
-  const cv = document.getElementById('ipMapCanvas'); if(!cv) return;
-  resizeMapCanvas(cv); drawNeonMap(cv, [], null);
-  TRACER.animId = requestAnimationFrame(drawTacticalMapIdle);
-}
-
-// ── FLASH HOP ─────────────────────────────────────────────────
-function flashHop(hop, first, onDone){
-  // Always cancel any running animation first
-  if(TRACER.animId){ cancelAnimationFrame(TRACER.animId); TRACER.animId=null; }
-
-  const cv=document.getElementById('ipMapCanvas');
-  if(!cv){ if(onDone)setTimeout(onDone,50); return; }
-
-  resizeMapCanvas(cv);
-  const s=GS.ip;
-
-  // Update info text immediately
-  document.getElementById('ipCurrentIP').textContent=hop.ip;
-  document.getElementById('ipCurrentCity').textContent='📍 '+hop.city+', '+hop.country;
-  try{SFX.sonar();}catch(e){}
-
-  // Draw map with this hop shown
-  const trail=s.hops?s.hops.slice(0,Math.max(0,s.cur)+1):[];
-  drawNeonMap(cv,trail,hop);
-
-  // Store position for next hop's trail line
-  const to=mapProj(hop.lat,hop.lon,cv.width||680,cv.height||240);
-  s.prevX=to.x; s.prevY=to.y;
-
-  // One-frame delay so browser paints before presenting the challenge
-  setTimeout(function(){ if(onDone)onDone(); },150);
-}
-
-// ── MAP PULSE (during answer phase) ──────────────────────────
-let _mapPulseId = null;
-function startMapPulse(){
-  if(_mapPulseId) return;
-  function pulse(){
-    const cv = document.getElementById('ipMapCanvas'); if(!cv){ _mapPulseId = null; return; }
-    resizeMapCanvas(cv);
-    const s = GS.ip;
-    const trail = s && s.hops ? s.hops.slice(0, Math.max(0, (s.cur || 0) + 1)) : [];
-    const cur   = s && s.hops && s.cur >= 0 ? s.hops[s.cur] : null;
-    drawNeonMap(cv, trail, cur);
-    _mapPulseId = requestAnimationFrame(pulse);
-  }
-  _mapPulseId = requestAnimationFrame(pulse);
-}
-function stopMapPulse(){
-  if(_mapPulseId){ cancelAnimationFrame(_mapPulseId); _mapPulseId = null; }
-}
-
-// ── START TRACE ───────────────────────────────────────────────
-function startTrace(){
-  document.getElementById('ipMode').style.display='none';
-  document.getElementById('ipTrace').style.display='';
-  document.getElementById('ipEasyOpts').style.display='none';
-  document.getElementById('ipStat').textContent='';
-  document.getElementById('ipCurrentIP').textContent='';
-  document.getElementById('ipCurrentCity').textContent='Initialising trace…';
-
-  const hopCount = Math.max(5, GS.maxH<=1?8:GS.maxH<=2?7:GS.maxH<=3?6:5);
-  const hops = genHops(hopCount);
-  GS.ip = { hops, cur:-1, timer:60, done:false, ti:null,
-            waitingForAnswer:false, currentChallengeHop:null,
-            prevX:null, prevY:null, usedRetry:false };
-
-  document.getElementById('ipTimer').textContent='60';
-  document.getElementById('ipTimer').classList.remove('danger');
-  try{ SFX.bgStart(); }catch(ex){}
-
-  document.getElementById('ipCurrentCity').textContent='Get ready — trace starting in 5!';
-  let cd = 5;
-  const cdInt = setInterval(()=>{
-    cd--; try{ SFX.tick(); }catch(ex){}
-    if(cd > 0){
-      document.getElementById('ipCurrentCity').textContent='Get ready — ' + cd + '!';
-    } else {
-      clearInterval(cdInt);
-      startIPCountdown();
-      GS.ip.cur = 0;
-      flashHop(hops[0], true, ()=>{
-        document.getElementById('ipHopInfo').textContent='HOP 1/'+hops.length+' — '+hops[0].city+', '+hops[0].country;
-        presentHopChallenge(0);
-      });
-    }
-  }, 1000);
-}
-
-function startIPCountdown(){
-  const s = GS.ip;
-  s.ti = setInterval(()=>{
-    s.timer--;
-    const el = document.getElementById('ipTimer');
-    el.textContent = s.timer;
-    if(s.timer <= 15){ el.classList.add('danger'); try{ SFX.tick(); }catch(ex){} }
-    if(s.timer === 15){ try{ SFX.bgIntensify(); }catch(ex){} }
-    if(s.timer <= 0){ clearInterval(s.ti); endTrace(false,'Time ran out!'); }
-  }, 1000);
-}
-
-function advanceHop(){
-  const s = GS.ip; if(s.done || s.cur >= s.hops.length - 1) return;
-  s.cur++;
-  const hop = s.hops[s.cur];
-  flashHop(hop, false, ()=>{
-    document.getElementById('ipHopInfo').textContent='HOP '+(s.cur+1)+'/'+s.hops.length+' — '+hop.city+', '+hop.country;
-    const pool = IP_TRACE_CHAT.onHop;
-    if(pool){ const e = pick(pool); gcMsg(e.persona, pick(e.msgs)); }
-    presentHopChallenge(s.cur);
-  });
-}
-
-function rndIP(){return `${randInt(2,220)}.${randInt(0,254)}.${randInt(0,254)}.${randInt(1,254)}`;}
-
-function loadIPTrace(){
-  try{SFX.alert();}catch(e){}
-  document.body.classList.add('alert-mode');setSim('🔴 INTRUSION DETECTED');
-  GS.active=true;
-  try{const e1=pick(IP_TRACE_CHAT.onStart);gcMsg(e1.persona,pick(e1.msgs),400);}catch(e){}
-  try{setTimeout(()=>{const e2=pick(IP_TRACE_CHAT.onStart);gcMsg(e2.persona,pick(e2.msgs));},3200);}catch(e){}
-  document.getElementById('ipMode').style.display='';
-  document.getElementById('ipTrace').style.display='none';
-  document.getElementById('ipResult').style.display='none';
-  document.getElementById('ipOverlay').classList.add('open');
-  // Initialise the neon canvas map
-  drawTacticalMapIdle();
-}
-
-function endTrace(won,reason){
-  const s=GS.ip;if(s.done)return;s.done=true;
-  clearInterval(s.ti); // hopInt removed — only the countdown timer to clear
-  stopMapPulse();if(TRACER.animId){cancelAnimationFrame(TRACER.animId);TRACER.animId=null;}
-  try{SFX.bgStop();}catch(ex){}
-  document.getElementById('ipTrace').style.display='none';
-  document.getElementById('ipResult').style.display='';
-  if(won){
-    try{SFX.win();}catch(ex){}/*vox*/addXP(50);GS.ipWon=true;
-    document.getElementById('ipResultInner').innerHTML=`<div class="iprwin">✓ HACKER LOCKED OUT!</div><div class="iprsub">Every IP confirmed. Machine isolated!<br>Outstanding work, Agent! 🏆</div>`;
-    const e=pick(IP_TRACE_CHAT.onWin);gcMsg(e.persona,pick(e.msgs),600);
-  } else {
-    try{SFX.lose();}catch(ex){}/*vox*/
-    document.getElementById('ipResultInner').innerHTML=`<div class="iprlose">✗ TRACE FAILED</div><div class="iprsub">${esc(reason||'The hacker escaped.')}<br>Keep practising!</div>`;
-    const e=pick(IP_TRACE_CHAT.onLose);gcMsg(e.persona,pick(e.msgs),600);
-  }
-}
-
-// ── RETRY MODAL — one second chance per trace ──────────────────
-function showIPRetryModal(reason){
-  // Use the unified game modal — no dependency on a separate retry modal element
-  var html='<div class="gm-flash" style="color:var(--red)">&#9888; TRACE INTERRUPTED</div>'
-          +'<div class="gm-title" style="margin-bottom:18px">'+esc(reason)+'</div>'
-          +'<div style="display:flex;gap:10px;">'
-          +'<button class="btn btn-g btn-orb gm-ok" id="gameModalOk" style="flex:1">&#128260; TRY AGAIN (45s)</button>'
-          +'<button class="btn btn-sm btn-d" id="ipGiveUp" style="flex:1">GIVE UP</button>'
-          +'</div>';
-  showGameModal(html, function(){ retryIPTrace(); });
-  // Wire give-up separately
-  setTimeout(function(){
-    var g=document.getElementById('ipGiveUp');
-    if(g)g.onclick=function(){
-      var el=gameModalEl(); if(el)el.style.display='none';
-      var body=document.getElementById('gameModalBody'); if(body)body.innerHTML='';
-      declineRetryIPTrace();
-    };
-  },0);
-}
-
-function retryIPTrace(){
-  const s=GS.ip; if(!s)return;
-  s.usedRetry=true; s.done=false;
-  // Restart with same hop count but fresh hops and 45 seconds
-  const hopCount=s.hops.length;
-  const newHops=genHops(hopCount);
-  s.hops=newHops; s.cur=-1;
-  s.timer=45; s.waitingForAnswer=false;
-  document.getElementById('ipTimer').textContent='45';
-  document.getElementById('ipTimer').classList.remove('danger');
-  document.getElementById('ipTrace').style.display='';
-  document.getElementById('ipResult').style.display='none';
-  try{SFX.bgStart();}catch(ex){}
-  startIPCountdown();
-  gcMsg('zara','Second chance! 45 seconds — stay focused! ⚡',200);
-  gcMsg('marcus','You\'ve got this! Read those IPs carefully! 💪',800);
-  setTimeout(()=>advanceHop(),2000);
-}
-
-function declineRetryIPTrace(){
-  const s=GS.ip; if(!s)return;
-  s.usedRetry=true;
-  endTrace(false,'Trace abandoned.');
-}
-
-function closeIPTrace(){
-  /*vox*/stopMapPulse();if(TRACER.animId){cancelAnimationFrame(TRACER.animId);TRACER.animId=null;}
-  try{SFX.bgStop();}catch(ex){}
-  document.getElementById('ipOverlay').classList.remove('open');
-  document.body.classList.remove('alert-mode');
-  GS.active=false;setSim('READY');setStep(0);clearGlows();
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
-  schedAutoAdvance(12000);
-}
-
-function genHops(n){
-  return shuffle([...CITIES]).slice(0,n).map((c,i,arr)=>({
-    ...c,
-    ip:`${randInt(2,220)}.${randInt(0,254)}.${randInt(0,254)}.${randInt(1,254)}`,
-    hard: i >= arr.length - 2  // last 2 hops: similar decoy IPs
-  }));
-}
-
-// Build 3 IP options for a hop — last hops use near-identical decoys
-function buildHopOptions(hop){
-  if(hop.hard){
-    const p = hop.ip.split('.');
-    const base = parseInt(p[3]);
-    const decoy1 = p.slice(0,3).join('.')+'.'+((base+1)%256);
-    const decoy2 = p.slice(0,3).join('.')+'.'+((base+2)%256);
-    return shuffle([hop.ip, decoy1, decoy2]);
-  }
-  return shuffle([hop.ip, rndIP(), rndIP()]);
-}
-
-// ── CHAT ──────────────────────────────────────────────────────
-function gcMsg(pId,msg,delay=0){
-  const p=PERSONAS[pId];if(!p||!msg)return;
-  setTimeout(()=>{
-    const now=new Date(),t=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-    const w=document.createElement('div');w.className='cmsg p'+pId;
-    w.innerHTML=`<div class="chdr"><span class="cname">${p.name}</span><span class="ctime">${t}</span></div><div class="cbub">${esc(msg)}</div>`;
-    const box=document.getElementById('chatMsgs');box.appendChild(w);box.scrollTop=box.scrollHeight;
-    try{SFX.chatPing();}catch(e){}
-    /*vox*/
-  },delay);
-}
-
-// ── 2-PART MODULE LOAD CHAT (slow — one message, then one 4s later) ──
-function gcModLoad(modId){
-  const chat=MODULE_GROUP_CHAT[modId];if(!chat)return;
-  // Message 1: heads up (immediate)
-  const e1=pick(chat.onLoad_1||[]);if(e1)gcMsg(e1.persona,pick(e1.msgs),500);
-  // Message 2: where to start (4 seconds later)
-  const e2=pick(chat.onLoad_2||[]);if(e2)gcMsg(e2.persona,pick(e2.msgs),5000);
-}
-
-// ── gcMod: module-specific first, falls back to GLOBAL_CHAT pool ──
-function gcMod(modId,key,delay=400){
-  const chat=MODULE_GROUP_CHAT[modId];
-  // Try module-specific key first
-  if(chat&&chat[key]){
-    const e=pick(chat[key]);
-    if(e)gcMsg(e.persona,pick(e.msgs),delay);
-    return;
-  }
-  // Fall back to global pool
-  const pool=GLOBAL_CHAT[key];
-  if(!pool)return;
-  const e=pick(pool);
-  if(e)gcMsg(e.persona,pick(e.msgs),delay);
-}
-
-// ── SC BRIDGE REMOVED — stubs in setStep section ───────────────
-
-// ── PLENARY MODAL ─────────────────────────────────────────────
-function showPlenary(savedId,savedScenario){
-  const mod=MODULES[savedId];if(!mod||!mod.plenary)return schedAutoAdvance(20000);
-  const pl=mod.plenary;
-  const allClear=savedScenario&&savedScenario.every(s=>s.ragAnswer==='G');
-  const narrators=['Marcus:','Priya:','Zara:','The team:'];
-
-  document.getElementById('plenTitle').textContent='🔍 DEBRIEF — '+mod.name;
-  // Reset phase state
-  document.getElementById('plenPhase1').style.display='block';
-  document.getElementById('plenPhase2').style.display='none';
-  document.getElementById('plenToQuiz').style.display='none';
-  document.getElementById('plenContinue').style.display='none';
-
-  // ── Phase 1: debrief content ──────────────────────────────
-  let html=`<div style="font-size:12px;color:rgba(0,255,65,.4);margin-bottom:12px;">${pick(narrators)}</div>`;
-  if(pl.analogy){html+=`<div class="plen-analogy">${pl.analogy}</div>`;}
-  if(pl.whatHappened){html+=`<div class="plen-fact"><span class="plen-icon">⚡</span><span>${pl.whatHappened}</span></div>`;}
-  if(pl.keyMove){html+=`<div class="plen-fact"><span class="plen-icon">🎯</span><span>${pl.keyMove}</span></div>`;}
-  if(pl.realWorld){html+=`<div class="plen-fact"><span class="plen-icon">🏠</span><span>${pl.realWorld}</span></div>`;}
-  document.getElementById('plenContent').innerHTML=html;
-
-  // ── Report question (suppressed if all-clear) ─────────────
-  if(allClear){
-    GS.plenReportDone=true;
-    document.getElementById('plenReport').innerHTML=
-      `<div class="plen-allclear">✅ All clear — no threats found, no report needed!</div>`;
-    document.getElementById('plenToQuiz').style.display='block';
-  } else {
-    const teams=shuffle([mod.reportTeams.correct,mod.reportTeams.incorrect]);
-    const hint=mod.reportHint||'Think about what type of attack this was.';
-    let rHtml=`<div class="plen-report-q">
-      <div class="pq-q">📋 Who gets this report?</div>
-      <div class="pq-hint">${esc(hint)}</div>
-      <div class="pq-opts">`;
-    teams.forEach(t=>{
-      rHtml+=`<button class="pq-opt pq-report-opt" data-team="${escA(t)}" onclick="plenReport('${escA(t)}','${escA(mod.reportTeams.correct)}','${escA(savedId)}')">${esc(t)}</button>`;
+      return {
+        name: acc.name,
+        purpose: acc.role,
+        failedLogins,
+        successfulLogins,
+        uniqueIPs,
+        geoLocations,
+        timeSpanMins,
+        ragAnswer, actionAnswer,
+        notes: isCompromised ? 'POSSIBLE BREACH: Success after mass failures = compromised.' : isAttacked ? 'Under attack but not yet breached.' : 'Normal login pattern.',
+        handled: false, userRag: null, userAction: null
+      };
     });
-    rHtml+=`</div><div class="pq-result" id="pqr_report"></div></div>`;
-    document.getElementById('plenReport').innerHTML=rHtml;
+  },
+  reportTeams: { correct: 'Identity & Access Management (IAM) Team', incorrect: 'Graphic Design Team' },
+  completionText(mode, scenario) {
+    return `<div class="result-card"><h3>WHAT IS CREDENTIAL HARVESTING?</h3>
+    <p>Imagine someone finds a list of everyone's username and password from a data breach at another website. They then try all those passwords on YOUR website — this is called "credential stuffing". It's like someone finding your old house key and trying it on every door in town.</p>
+    <p style="margin-top:8px;">The telltale signs are: hundreds of failed logins in minutes, from many different countries, on the same account. If they succeed even once, the account is compromised!</p></div>`;
   }
+};
 
-  // ── Phase 2: quiz (built now, hidden until phase 2 shown) ─
-  const quizPool=(()=>{
-    if(!pl.quiz||!pl.quiz.length) return [];
-    if(!SESSION_HISTORY.quizShown[savedId]) SESSION_HISTORY.quizShown[savedId]=new Set();
-    const seen=SESSION_HISTORY.quizShown[savedId];
-    const allIdx=pl.quiz.map((_,i)=>i);
-    const unseen=allIdx.filter(i=>!seen.has(i));
-    const pool=unseen.length>=2?unseen:allIdx; // reset if all questions seen
-    const picked=shuffle(pool).slice(0,2);
-    picked.forEach(i=>seen.add(i));
-    return picked.map(i=>pl.quiz[i]);
-  })();
-  if(quizPool.length){
-    GS.plenQuizTotal=quizPool.length;
-    let qHtml='';
-    quizPool.forEach((q,qi)=>{
-      qHtml+=`<div class="pq" id="pq${qi}"><div class="pq-q">${q.q}</div><div class="pq-opts">`;
-      q.options.forEach((opt,oi)=>{
-        qHtml+=`<button class="pq-opt" id="pqo${qi}_${oi}" onclick="plenAnswer(${qi},${oi},${q.correct})">${esc(opt)}</button>`;
-      });
-      qHtml+=`</div><div class="pq-result" id="pqr${qi}"></div></div>`;
+// ─────────────────────────────────────────────────────────────
+// MODULE 6: MAN-IN-THE-MIDDLE (MitM)
+// ─────────────────────────────────────────────────────────────
+MODULES.mitm = {
+  id: 'mitm',
+  name: 'MAN-IN-THE-MIDDLE ATTACK',
+  emailSender: () => pick(['ssl@certwatch.net','tls@securenet.io','monitor@sslops.com']),
+  emailSubject: () => pick(['SSL Certificate Anomaly','TLS Intercept Warning','Unusual Certificate Detected','Network Intercept Alert']),
+  emailBody() {
+    return pick([
+      `Hi,\n\nOur certificate monitoring service has picked up some anomalies with SSL/TLS traffic. It's possible someone is intercepting communications. Please review using the SSL Certificate Inspector.\n\nCertWatch`,
+      `Hello,\n\nWe've detected what could be rogue SSL certificates on some network connections. This could indicate a man-in-the-middle attack. Load the SSL Certificate Inspector immediately.\n\nSecureNet`,
+      `Hi Agent,\n\nNetwork probes suggest some connections may be being intercepted. Check the SSL Certificate Inspector and assess each connection.\n\nSSL Operations`
+    ]);
+  },
+  tools: {
+    correct: 'SSL Certificate Inspector',
+    decoys: ['Process Monitor','Database Query Analyser','Bandwidth Checker','Email Header Analyser','Wi-Fi Scanner']
+  },
+  generateScenario() {
+    const connections = [
+      { name: 'Banking Portal (TLS)', purpose: 'Financial transaction HTTPS' },
+      { name: 'Internal VPN Tunnel', purpose: 'Staff remote access' },
+      { name: 'Email Server (SMTP/TLS)', purpose: 'Outbound encrypted email' },
+      { name: 'Cloud Storage (HTTPS)', purpose: 'File sync to cloud provider' },
+      { name: 'HR System (HTTPS)', purpose: 'Personnel data access' },
+      { name: 'Public Website (HTTPS)', purpose: 'Customer-facing site' },
+    ];
+
+    const chosen = shuffle(connections).slice(0, 5);
+    const interceptedCount = randInt(0, 2);
+
+    return chosen.map((conn, i) => {
+      const isIntercepted = i < interceptedCount;
+      const certAuthority = isIntercepted
+        ? pick(['UNKNOWN CA','Self-Signed','DigiCert (UNVERIFIED)','Let\'s Encrypt (MISMATCH)'])
+        : pick(['DigiCert Inc','Comodo CA','Let\'s Encrypt (Valid)','GlobalSign']);
+      const fingerprint = isIntercepted
+        ? pick(['AA:BB:CC:DD:EE:FF (MISMATCH)','HASH_CHANGED_SINCE_YESTERDAY','00:00:00:00:00:00 (INVALID)'])
+        : `${randInt(10,99).toString(16).toUpperCase()}:${randInt(10,99).toString(16).toUpperCase()}:${randInt(10,99).toString(16).toUpperCase()} (Valid)`;
+      const daysToExpiry = isIntercepted ? randInt(-5, 2) : randInt(30, 365);
+      const tlsVersion = isIntercepted ? pick(['TLS 1.0 (Deprecated!)','SSL 2.0 (INSECURE!)','TLS 1.1 (Outdated)']) : pick(['TLS 1.3','TLS 1.2']);
+      const rehandshakes = isIntercepted ? randInt(80, 400) : randInt(0, 5);
+
+      let ragAnswer, actionAnswer;
+      if (isIntercepted && (daysToExpiry < 0 || rehandshakes > 100)) {
+        ragAnswer = 'R'; actionAnswer = 'revokeBlock';
+      } else if (isIntercepted) {
+        ragAnswer = 'A'; actionAnswer = 'investigate';
+      } else {
+        ragAnswer = 'G'; actionAnswer = 'ignore';
+      }
+
+      return {
+        name: conn.name,
+        purpose: conn.purpose,
+        certAuthority,
+        fingerprint,
+        daysToExpiry,
+        tlsVersion,
+        rehandshakes,
+        ragAnswer, actionAnswer,
+        notes: isIntercepted ? 'Certificate anomaly detected — possible interception.' : 'Certificate looks legitimate.',
+        handled: false, userRag: null, userAction: null
+      };
     });
-    document.getElementById('plenQuiz').innerHTML=qHtml;
-  } else {
-    GS.plenQuizTotal=0;
+  },
+  reportTeams: { correct: 'Network Security & PKI Team', incorrect: 'Sales Team' },
+  completionText(mode, scenario) {
+    return `<div class="result-card"><h3>WHAT IS MAN-IN-THE-MIDDLE?</h3>
+    <p>Imagine you pass a note to your friend, but someone in the middle secretly reads it, possibly changes it, and passes it on. That's exactly what a MitM attack does — it intercepts your internet traffic.</p>
+    <p style="margin-top:8px;">SSL/TLS certificates are like digital ID cards that prove websites are who they say they are. If the certificate looks wrong — wrong authority, expired, or fingerprint changed — it might mean someone is secretly listening in.</p></div>`;
   }
+};
 
-  document.getElementById('plenaryModal').classList.add('open');
-}
+// ─────────────────────────────────────────────────────────────
+// MODULE 7: INSIDER THREAT / DATA EXFILTRATION
+// ─────────────────────────────────────────────────────────────
+MODULES.insiderThreat = {
+  id: 'insiderThreat',
+  name: 'DATA EXFILTRATION',
+  emailSender: () => pick(['dlp@datawatch.net','audit@complianceops.io','ueba@behaviorwatch.com']),
+  emailSubject: () => pick(['DLP Alert: Large Data Transfer','Unusual Data Access Pattern','Behavioural Anomaly Detected','UEBA Alert - Review Required']),
+  emailBody() {
+    return pick([
+      `Hi,\n\nOur Data Loss Prevention system has flagged some unusual data transfers. It could be an insider threat or an external attacker who has gained internal access. Please review using the DLP Monitor.\n\nDataWatch`,
+      `Hello,\n\nBehavioural analytics have picked up some anomalous activity. User access patterns don't match their normal baseline. Please investigate.\n\nCompliance Ops`,
+      `Hi Agent,\n\nWe've noticed large, unusual data movements that could indicate data exfiltration. Please load the DLP Monitor and assess urgently.\n\nUEBA Team`
+    ]);
+  },
+  tools: {
+    correct: 'DLP Monitor',
+    decoys: ['Network Traffic Monitor','Email Header Analyser','SSL Certificate Inspector','Process Monitor','Database Query Analyser']
+  },
+  generateScenario() {
+    const users = [
+      { name: 'j.wilson (Sales)', dept: 'Sales', normalGB: 0.8 },
+      { name: 'a.kumar (IT Admin)', dept: 'IT', normalGB: 4.2 },
+      { name: 'm.jones (Finance)', dept: 'Finance', normalGB: 0.5 },
+      { name: 'r.taylor (HR)', dept: 'HR', normalGB: 0.3 },
+      { name: 'b.murphy (Dev)', dept: 'Engineering', normalGB: 6.1 },
+      { name: 'c.lee (Exec Asst)', dept: 'Executive', normalGB: 0.4 },
+    ];
 
-// Transition from phase 1 (debrief) to phase 2 (quiz)
-function plenPhase2(){
-  document.getElementById('plenPhase1').style.display='none';
-  document.getElementById('plenPhase2').style.display='block';
-  document.querySelector('.plen-box').scrollTop=0;
-  if(GS.plenQuizTotal===0) document.getElementById('plenContinue').style.display='block';
-}
+    const chosen = shuffle(users).slice(0, 5);
+    const exfilCount = randInt(0, 2);
 
+    return chosen.map((user, i) => {
+      const isExfil = i < exfilCount;
+      const dataTransferGB = isExfil
+        ? parseFloat((user.normalGB * randFloat(8, 40)).toFixed(2))
+        : parseFloat((user.normalGB * randFloat(0.8, 1.3)).toFixed(2));
+      const destination = isExfil
+        ? pick(['External USB Drive','Personal Gmail (via browser)','Unknown FTP Server 194.x.x.x','Mega.nz Upload','Dropbox Personal (non-corporate)'])
+        : pick(['Internal Server Share','Corporate OneDrive','Company Email']);
+      const fileTypes = isExfil
+        ? pick(['.xlsx .docx .pdf (sensitive)','CUSTOMER_DATA.csv, CONTRACTS.zip','intellectual_property.zip'])
+        : pick(['project_docs.docx','normal work files']);
+      const timeOfDay = isExfil ? pick(['02:47 AM','11:58 PM','01:23 AM','Saturday 3:15 AM']) : pick(['09:30 AM','2:15 PM','11:00 AM']);
+      const normalBaseline = user.normalGB;
 
-// Report question answered in plenary — unlocks the quiz
-function plenReport(chosen,correct,savedId){
-  document.querySelectorAll('.pq-report-opt').forEach(b=>{
-    b.disabled=true;
-    if(b.dataset.team===chosen)b.classList.add(chosen===correct?'correct':'wrong');
-    if(b.dataset.team===correct&&chosen!==correct)b.classList.add('correct');
-  });
-  const ok=(chosen===correct);
-  const r=document.getElementById('pqr_report');
-  r.textContent=ok?'✓ Correct!':'Correct team is shown above.';
-  r.className='pq-result '+(ok?'ok':'bad');
-  doReport(ok,correct,savedId);
-  toast(ok?'✓ Right team!':'✗ Wrong team',ok?'ok':'bad');
-  // Write report result into results tab slot
-  const slot=document.getElementById('reportResultSlot');
-  if(slot)slot.innerHTML=`<div class="rc ${ok?'ok':'bad'}" style="margin-top:8px;"><h3>${ok?'✓':'✗'} Report ${ok?'to right team':'wrong team'}</h3><p>Correct: <strong>${esc(correct)}</strong></p></div>`;
-  GS.plenReportDone=true;
-  document.getElementById('plenToQuiz').style.display='block';
-}
+      let ragAnswer, actionAnswer;
+      if (isExfil && dataTransferGB > normalBaseline * 10) {
+        ragAnswer = 'R'; actionAnswer = 'lockAccount';
+      } else if (isExfil) {
+        ragAnswer = 'A'; actionAnswer = 'investigate';
+      } else {
+        ragAnswer = 'G'; actionAnswer = 'ignore';
+      }
 
-function plenAnswer(qi,oi,correct){
-  const opts=document.querySelectorAll(`#pq${qi} .pq-opt`);
-  opts.forEach(b=>b.disabled=true);
-  const r=document.getElementById('pqr'+qi);
-  GS.quizTotal=(GS.quizTotal||0)+1;
-  if(oi===correct){
-    opts[oi].classList.add('correct');
-    r.textContent='✓ Correct! +15 XP';r.className='pq-result ok';
-    try{SFX.correct();}catch(e){}
-    addXP(15);
-    GS.quizCorrect=(GS.quizCorrect||0)+1;
-  } else {
-    opts[oi].classList.add('wrong');opts[correct].classList.add('correct');
-    r.textContent='Answer shown above in green.';r.className='pq-result bad';
-    try{SFX.wrong();}catch(e){}
+      return {
+        name: user.name,
+        purpose: `${user.dept} Department`,
+        dataTransferGB,
+        normalBaselineGB: normalBaseline,
+        destination,
+        fileTypes,
+        timeOfDay,
+        ragAnswer, actionAnswer,
+        notes: isExfil ? 'Data transfer far exceeds baseline — check destination!' : 'Transfer within normal range for this user.',
+        handled: false, userRag: null, userAction: null
+      };
+    });
+  },
+  reportTeams: { correct: 'Data Protection Officer (DPO) & Legal Team', incorrect: 'Catering Team' },
+  completionText(mode, scenario) {
+    return `<div class="result-card"><h3>WHAT IS DATA EXFILTRATION?</h3>
+    <p>Imagine someone secretly photocopying all the important documents in your school office and smuggling them out in their backpack at 3am. Data exfiltration is doing the same — but with digital files.</p>
+    <p style="margin-top:8px;">Key red flags: transfers at odd hours, to personal accounts or external drives, files way bigger than usual, and sensitive file types (like spreadsheets with customer data). The time of day is a huge clue — 3am uploads to personal Dropbox are never legitimate!</p></div>`;
   }
-  GS.plenQuizAnswered=(GS.plenQuizAnswered||0)+1;
-  checkPlenComplete();
-}
+};
 
-function checkPlenComplete(){
-  if(GS.plenQuizAnswered>=(GS.plenQuizTotal||0)){
-    setTimeout(()=>{document.getElementById('plenContinue').style.display='block';},600);
+// ─────────────────────────────────────────────────────────────
+// MODULE 8: ZERO-DAY / VULNERABILITY SCAN
+// ─────────────────────────────────────────────────────────────
+MODULES.vulnerabilityScan = {
+  id: 'vulnerabilityScan',
+  name: 'VULNERABILITY SCAN',
+  emailSender: () => pick(['vuln@patchops.net','scanner@secaudit.io','cve@threatintel.com']),
+  emailSubject: () => pick(['Vulnerability Scan Results Ready','CVE Alert: Unpatched Systems Detected','Patch Compliance Report','Security Audit: Action Required']),
+  emailBody() {
+    return pick([
+      `Hi,\n\nOur automated vulnerability scanner has completed its sweep. Several systems may have unpatched vulnerabilities. Please review the findings using the Vulnerability Scanner Dashboard.\n\nPatch Ops`,
+      `Hello,\n\nRecent CVE advisories match some software versions running in our environment. Please load the Vulnerability Scanner Dashboard and assess the risk level for each finding.\n\nThreat Intel`,
+      `Hi Agent,\n\nSecurity audit flagged several systems that may be missing critical patches. Some of these could be exploited by attackers. Please review and prioritise patching.\n\nSecurity Audit`
+    ]);
+  },
+  tools: {
+    correct: 'Vulnerability Scanner Dashboard',
+    decoys: ['DLP Monitor','Authentication Log Viewer','Network Traffic Monitor','Email Header Analyser','Bandwidth Checker']
+  },
+  generateScenario() {
+    const systems = [
+      { name: 'Web Server (Apache 2.4.49)', purpose: 'Public web hosting' },
+      { name: 'Windows Server 2019 R1', purpose: 'Active Directory controller' },
+      { name: 'MySQL 8.0.26', purpose: 'Production database' },
+      { name: 'OpenSSL 1.0.2 (legacy)', purpose: 'Encryption library' },
+      { name: 'pfSense Firewall 2.5.1', purpose: 'Network perimeter firewall' },
+      { name: 'Ubuntu 20.04 LTS', purpose: 'App server' },
+      { name: 'VMware ESXi 7.0.0', purpose: 'Virtualisation host' },
+    ];
+
+    const cveSeverities = ['CRITICAL','HIGH','MEDIUM','LOW'];
+    const chosen = shuffle(systems).slice(0, 5);
+
+    return chosen.map((sys, i) => {
+      const cvssScore = parseFloat(randFloat(0, 10, 1));
+      const severity = cvssScore >= 9 ? 'CRITICAL' : cvssScore >= 7 ? 'HIGH' : cvssScore >= 4 ? 'MEDIUM' : 'LOW';
+      const patchAvailable = Math.random() > 0.2;
+      const daysSincePatch = patchAvailable ? randInt(0, 180) : null;
+      const cveId = `CVE-${randInt(2020,2024)}-${randInt(1000,99999)}`;
+      const exploitInWild = cvssScore >= 8 && Math.random() > 0.4;
+
+      let ragAnswer, actionAnswer;
+      if (exploitInWild || severity === 'CRITICAL') {
+        ragAnswer = 'R'; actionAnswer = 'patchNow';
+      } else if (severity === 'HIGH') {
+        ragAnswer = 'A'; actionAnswer = 'schedulePatch';
+      } else {
+        ragAnswer = 'G'; actionAnswer = 'ignore';
+      }
+
+      return {
+        name: sys.name,
+        purpose: sys.purpose,
+        cveId,
+        cvssScore,
+        severity,
+        patchAvailable,
+        daysSincePatch,
+        exploitInWild,
+        ragAnswer, actionAnswer,
+        notes: exploitInWild ? '⚠ EXPLOIT FOUND IN THE WILD — patch IMMEDIATELY.' : severity === 'LOW' ? 'Low risk — schedule routine patch.' : `CVSS ${cvssScore}: ${severity} risk.`,
+        handled: false, userRag: null, userAction: null
+      };
+    });
+  },
+  reportTeams: { correct: 'Patch Management & Change Advisory Board', incorrect: 'Social Media Team' },
+  completionText(mode, scenario) {
+    return `<div class="result-card"><h3>WHAT IS A VULNERABILITY?</h3>
+    <p>A vulnerability is like a broken lock on a door. The CVE database is like a public notice board where security researchers post details of every known broken lock, so companies can fix them. Attackers read the same board!</p>
+    <p style="margin-top:8px;">The CVSS score goes from 0 to 10 — think of it like a danger score. A 9.8 CRITICAL means the lock is basically wide open. If there's already an exploit "in the wild", it means attackers are already through the door. Patch fast!</p></div>`;
   }
+};
+
+// Export module list for engine
+var MODULE_LIST = ['ddos','malware','sqli','ransomware','phishingHarvest','mitm','insiderThreat','vulnerabilityScan'];
+
+// Build tool options for dropdown
+function getToolOptions(moduleId) {
+  const mod = MODULES[moduleId];
+  if (!mod) return [];
+  const decoys = shuffle(mod.tools.decoys).slice(0, 2);
+  return shuffle([mod.tools.correct, ...decoys]);
 }
 
-function closePlenary(){
-  const savedId=GS.debriefModId;
-  document.getElementById('plenaryModal').classList.remove('open');
-  if(savedId){gcMod(savedId,'scenarioComplete',300);}
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
-  GS.debriefModId=null;
-  if(GS.round>=GS.totalRounds&&!GS.queue.length){setTimeout(showEndgame,2000);}
-  else{schedAutoAdvance(18000);}
+// DATA COLUMN CONFIG per module
+var MODULE_COLUMNS = {
+  ddos: [
+    { key: 'name', label: 'SERVICE' },
+    { key: 'avgHitsMin', label: 'AVG /MIN' },
+    { key: 'currentHitsMin', label: 'CURRENT /MIN' },
+    { key: 'notes', label: 'NOTE' }
+  ],
+  malware: [
+    { key: 'name', label: 'PROCESS' },
+    { key: 'cpu', label: 'CPU %' },
+    { key: 'memMB', label: 'MEM (MB)' },
+    { key: 'networkKBs', label: 'NET KB/s' }
+  ],
+  sqli: [
+    { key: 'name', label: 'ENDPOINT' },
+    { key: 'payload', label: 'LAST PAYLOAD' },
+    { key: 'requestsPerMin', label: 'REQ/MIN' },
+    { key: 'statusCodes', label: 'STATUS' }
+  ],
+  ransomware: [
+    { key: 'name', label: 'DRIVE/SHARE' },
+    { key: 'encryptedFiles', label: 'ENCRYPTED' },
+    { key: 'writeOpsMin', label: 'WRITES/MIN' },
+    { key: 'newExtensions', label: 'NEW EXT' }
+  ],
+  phishingHarvest: [
+    { key: 'name', label: 'ACCOUNT' },
+    { key: 'failedLogins', label: 'FAILED LOGINS' },
+    { key: 'uniqueIPs', label: 'UNIQUE IPs' },
+    { key: 'timeSpanMins', label: 'TIME SPAN (m)' }
+  ],
+  mitm: [
+    { key: 'name', label: 'CONNECTION' },
+    { key: 'certAuthority', label: 'CERT AUTH' },
+    { key: 'tlsVersion', label: 'TLS VER' },
+    { key: 'daysToExpiry', label: 'DAYS EXPIRY' }
+  ],
+  insiderThreat: [
+    { key: 'name', label: 'USER' },
+    { key: 'dataTransferGB', label: 'TRANSFER (GB)' },
+    { key: 'destination', label: 'DESTINATION' },
+    { key: 'timeOfDay', label: 'TIME' }
+  ],
+  vulnerabilityScan: [
+    { key: 'name', label: 'SYSTEM' },
+    { key: 'cveId', label: 'CVE ID' },
+    { key: 'cvssScore', label: 'CVSS SCORE' },
+    { key: 'severity', label: 'SEVERITY' }
+  ]
+};
+
+// ACTION BUTTONS per module
+var MODULE_ACTIONS = {
+  ddos: [
+    { id: 'block', label: 'BLOCK TRAFFIC', cls: 'btn-block' },
+    { id: 'throttle', label: 'THROTTLE', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
+  ],
+  malware: [
+    { id: 'quarantine', label: 'QUARANTINE', cls: 'btn-block' },
+    { id: 'investigate', label: 'INVESTIGATE', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
+  ],
+  sqli: [
+    { id: 'block', label: 'BLOCK IP', cls: 'btn-block' },
+    { id: 'investigate', label: 'FLAG & MONITOR', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
+  ],
+  ransomware: [
+    { id: 'isolate', label: 'ISOLATE DRIVE', cls: 'btn-block' },
+    { id: 'investigate', label: 'MONITOR CLOSELY', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
+  ],
+  phishingHarvest: [
+    { id: 'lockAccount', label: 'LOCK ACCOUNT', cls: 'btn-block' },
+    { id: 'forceReset', label: 'FORCE PWD RESET', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
+  ],
+  mitm: [
+    { id: 'revokeBlock', label: 'REVOKE & BLOCK', cls: 'btn-block' },
+    { id: 'investigate', label: 'FLAG & INVESTIGATE', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
+  ],
+  insiderThreat: [
+    { id: 'lockAccount', label: 'LOCK ACCOUNT', cls: 'btn-block' },
+    { id: 'investigate', label: 'FLAG FOR REVIEW', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'IGNORE (OK)', cls: 'btn-ignore' }
+  ],
+  phishingModule: [
+    { id: 'report', label: '🚩 REPORT PHISHING', cls: 'btn-block' },
+    { id: 'ignore', label: '✅ DELIVER (GENUINE)', cls: 'btn-ignore' }
+  ],
+  bruteForce: [
+    { id: 'lockAccount', label: '🔒 LOCK ACCOUNT', cls: 'btn-block' },
+    { id: 'investigate', label: '🔍 INVESTIGATE', cls: 'btn-throttle' },
+    { id: 'ignore', label: '✅ NORMAL ACTIVITY', cls: 'btn-ignore' }
+  ],
+  socialEng: [
+    { id: 'block', label: '🚫 BLOCK & REPORT', cls: 'btn-block' },
+    { id: 'investigate', label: '🔍 VERIFY FIRST', cls: 'btn-throttle' },
+    { id: 'ignore', label: '✅ LEGITIMATE', cls: 'btn-ignore' }
+  ],
+  usbDrop: [
+    { id: 'quarantine', label: '🔌 QUARANTINE PC', cls: 'btn-block' },
+    { id: 'investigate', label: '🔍 INVESTIGATE', cls: 'btn-throttle' },
+    { id: 'ignore', label: '✅ AUTHORISED', cls: 'btn-ignore' }
+  ],
+  vulnerabilityScan: [
+    { id: 'patchNow', label: 'PATCH NOW', cls: 'btn-block' },
+    { id: 'schedulePatch', label: 'SCHEDULE PATCH', cls: 'btn-throttle' },
+    { id: 'ignore', label: 'LOW RISK - SKIP', cls: 'btn-ignore' }
+  ]
+};
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 9: PHISHING IDENTIFIER
+// (dedicated module — students examine a batch of incoming emails
+//  and must decide which are real and which are phishing)
+// ─────────────────────────────────────────────────────────────
+MODULES.phishingModule = {
+  id: 'phishingModule',
+  name: 'PHISHING IDENTIFIER',
+  emailSender: () => pick(['security@mailguard.net','phishing-reports@soc.io','awareness@cybersec.com']),
+  emailSubject: () => pick(['Phishing Drill: Review These Emails','Suspicious Email Batch — Your Assessment Needed','Email Security Check: Flag the Phish']),
+  emailBody(scenario) {
+    return pick([
+      `Hi Agent,\n\nWe've intercepted a batch of emails before they reached staff inboxes. Some are legitimate, some are phishing attempts. Please load the Email Header Analyser and flag anything suspicious.\n\nRemember: when in doubt, REPORT it!\n\nMailGuard`,
+      `Hello,\n\nAs part of our regular phishing awareness programme, please review the following batch of emails and identify which ones are phishing attempts.\n\nUse the Email Header Analyser tool.\n\nCyberSec Team`,
+      `Hi,\n\nWe've had reports that phishing emails are circulating. We've captured a batch for analysis. Can you review them and identify the real ones from the fakes?\n\nSOC Team`,
+    ]);
+  },
+  tools: {
+    correct: 'Email Header Analyser',
+    decoys: ['Network Traffic Monitor','Process Monitor','DLP Monitor','Vulnerability Scanner Dashboard','Authentication Log Viewer']
+  },
+    generateScenario(params={}) {
+    const {numEscalations=pick([0,1,2,2,3]),numItems=6}=params;
+    const numPhish=Math.min(numEscalations,numItems-1);
+    const numReal=numItems-numPhish;
+    const realPool=[{from:'hr@company.com',subject:'Updated Holiday Policy',body:'Hi team,\n\nThe updated holiday booking policy is attached.\n\nHR Team',phishing:false},{from:'it@company.com',subject:'Maintenance Tonight 11pm–2am',body:'Hi,\n\nServer maintenance tonight.\n\nIT Department',phishing:false},{from:'ceo@company.com',subject:'Team Meeting Next Friday',body:'Hi all,\n\nAll-hands at 10am next Friday.\n\nThanks',phishing:false},{from:'payroll@company.com',subject:'Your Payslip Is Ready',body:'Your payslip is in the HR portal.\n\nPayroll',phishing:false},{from:'helpdesk@company.com',subject:'Your Support Ticket Is Fixed',body:'Ticket #48821 resolved.\n\nIT Helpdesk',phishing:false},{from:'training@company.com',subject:'Reminder: Cybersecurity Training',body:'Your cybersecurity training is due.\n\nL&D',phishing:false},{from:'noreply@linkedin.com',subject:'You have 3 new connection requests',body:'Log in at linkedin.com to see them.',phishing:false}];
+    const phishPool=[{from:'hr@c0mpany.com',subject:'URGENT: Update Your Bank Details NOW',body:'Update bank details in 24hrs or pay stops.',phishing:true,clue:"c0mpany.com — zero (0) not the letter O!"},{from:'it-support@company.helpdesk.xyz',subject:'Your Password Has Expired!',body:'Account locks in 1 hour!',phishing:true,clue:'Real address ends .com — .helpdesk.xyz is fake!'},{from:'security@paypa1.com',subject:'Your PayPal Account Is Suspended',body:'Verify now or account closed.',phishing:true,clue:"paypa1.com — the l is the number 1!"},{from:'admin@microsooft.com',subject:'Your Storage Is Almost Full',body:'Upgrade now.',phishing:true,clue:"microsooft.com — two Os! Real is microsoft.com"},{from:'noreply@amaz0n.co.uk',subject:'Your Order Has Been Cancelled',body:'Update your card details.',phishing:true,clue:'amaz0n.co.uk — zero instead of O!'},{from:'security-alert@g00gle.com',subject:'Someone Signed Into Your Account',body:'Secure your account: g00gle.com',phishing:true,clue:"g00gle.com — two zeros instead of Os!"},{from:'it@company.com.phishkit.ru',subject:'Password Reset Required',body:'Reset: company.com.phishkit.ru/reset',phishing:true,clue:'Real .com address has .phishkit.ru tacked on!'},{from:'hr@cornpany.com',subject:'Christmas Party Vote',body:'Vote: cornpany.com/party-vote',phishing:true,clue:"cornpany.com — corn instead of com!"}];
+    const reals=shuffle(realPool).slice(0,numReal);
+    const phishs=shuffle(phishPool).slice(0,numPhish);
+    return shuffle([...reals,...phishs]).map(e=>({name:e.from,purpose:e.subject,body:e.body,domain:e.from.split('@')[1]||e.from,clue:e.clue||'Real company email',isPhish:e.phishing,ragAnswer:e.phishing?'R':'G',actionAnswer:e.phishing?'report':'ignore',notes:'',handled:false,userRag:null,userAction:null}));
+  },
+  emailBody(scenario) {
+    return pick([
+      `Hi Agent,\n\nWe caught a batch of emails before they got to people's inboxes. Some are real, some are FAKE — trying to trick people into clicking bad links.\n\nLoad the Email Header Analyser and spot the fakes! Tip: look VERY carefully at the sender address.\n\nMailGuard`,
+      `Hello,\n\nSuspicious emails are going around! Can you check which ones are real and which are fakes (phishing)?\n\nUse the Email Header Analyser tool. Remember: hackers swap letters for numbers in email addresses!\n\nCyberSec Team`,
+      `Hi,\n\nWe have a batch of emails that might include some fakes. Some look very convincing! Can you spot the dodgy ones?\n\nHint: the fake addresses always have a tiny mistake — a number instead of a letter, or an extra word.\n\nSOC Team`,
+    ]);
+  },
+  tools: {
+    correct: 'Email Header Analyser',
+    decoys: ['Network Traffic Monitor','Process Monitor','File Integrity Monitor','Password Checker','Wi-Fi Scanner']
+  },
+  generateScenario() {
+    const realSenders = [
+      { from:'hr@company.com',            subject:'Updated Holiday Policy',          body:'Hi team,\n\nThe updated holiday booking policy is attached. Changes start 1st January.\n\nHR Team', phishing:false },
+      { from:'it@company.com',            subject:'Maintenance Tonight 11pm–2am',    body:'Hi everyone,\n\nWe\'re doing server maintenance tonight. Some things might be slow for a bit.\n\nIT Department', phishing:false },
+      { from:'ceo@company.com',           subject:'Team Meeting Next Friday',         body:'Hi all,\n\nReminder: all-hands meeting next Friday at 10am in the main room.\n\nThanks', phishing:false },
+      { from:'payroll@company.com',       subject:'Your Payslip Is Ready',            body:'Hi,\n\nYour payslip is ready in the HR portal. Log in at hr.company.com.\n\nPayroll', phishing:false },
+      { from:'helpdesk@company.com',      subject:'Your Support Ticket Is Fixed',     body:'Hi,\n\nYour IT support ticket #48821 has been fixed. Any questions, just reply!\n\nIT Helpdesk', phishing:false },
+      { from:'training@company.com',      subject:'Reminder: Cybersecurity Training',  body:'Hi,\n\nYour annual cybersecurity training is due this month. Log in at learn.company.com.\n\nL&D Team', phishing:false },
+      { from:'notifications@linkedin.com',subject:'You have 3 new connection requests',body:'You have new connection requests on LinkedIn. Log in at linkedin.com to see them.', phishing:false },
+      { from:'noreply@github.com',        subject:'Review your account settings',      body:'Hi,\n\nWe noticed some unused SSH keys on your GitHub account. Please review them.\n\nGitHub Security', phishing:false },
+    ];
+
+    const phishSenders = [
+      { from:'hr@c0mpany.com',              subject:'URGENT: Update Your Bank Details NOW', body:'You MUST update your bank details in the next 24 hours or your pay will stop.\n\nClick: http://payroll-update.c0mpany.com\n\nHR Dept', phishing:true, clue:'c0mpany.com — that\'s a ZERO (0) not the letter O!' },
+      { from:'it-support@company.helpdesk.xyz', subject:'Your Password Has Expired!',    body:'Your password expired 2 days ago! Your account will lock in 1 hour!\n\nReset: http://company.helpdesk.xyz/reset\n\nIT Support', phishing:true, clue:'Real address is company.com — helpdesk.xyz is a fake!' },
+      { from:'ceo@company-group.net',       subject:'Secret: Send Money Today',          body:'Hi, I need you to secretly transfer £8,500 to a new supplier today. Don\'t tell anyone. Reply for bank details.\n\nCEO', phishing:true, clue:'The CEO would NEVER secretly ask someone to send money by email!' },
+      { from:'security@paypa1.com',         subject:'Your PayPal Account Is Suspended',   body:'Unusual activity found! Verify now or your account will be permanently closed:\n\nhttp://secure.paypa1.com/verify\n\n— PayPal Security', phishing:true, clue:'paypa1.com — the letter "l" has been replaced with the number 1!' },
+      { from:'admin@microsooft.com',        subject:'Your Storage Is Almost Full',         body:'Your OneDrive is almost full. Upgrade now to avoid losing files:\n\nhttp://microsooft.com/upgrade\n\n— Microsoft', phishing:true, clue:'microsooft.com — two O\'s in Microsoft! The real address is microsoft.com' },
+      { from:'noreply@amaz0n.co.uk',        subject:'Your Order Has Been Cancelled',       body:'Your order was cancelled due to a payment issue. Update your card:\n\nhttp://account.amaz0n.co.uk/billing\n\n— Amazon', phishing:true, clue:'amaz0n.co.uk — zero instead of the letter O!' },
+      { from:'security-alert@g00gle.com',   subject:'Someone Signed Into Your Account',   body:'A suspicious login was detected. Secure your account now:\n\nhttp://g00gle.com/security\n\nGoogle Security', phishing:true, clue:'g00gle.com — two zeros instead of two O\'s!' },
+      { from:'support@netfl1x.com',         subject:'Your Netflix Has Expired',           body:'Your Netflix subscription has expired. Update your payment now:\n\nhttp://account.netfl1x.com/billing\n\n— Netflix', phishing:true, clue:'netfl1x.com — the "i" in Netflix has been replaced with the number 1!' },
+      { from:'it@company.com.phishkit.ru',  subject:'Password Reset Required',             body:'Your company password must be reset in 24 hours. Reset here:\n\nhttp://company.com.phishkit.ru/reset\n\nIT Department', phishing:true, clue:'The real address ends in company.com — but ".phishkit.ru" is added on the end to fool you!' },
+      { from:'hr@cornpany.com',             subject:'Christmas Party Vote',                body:'Vote for the Christmas party venue here:\n\nhttp://cornpany.com/party-vote\n\nHR', phishing:true, clue:'cornpany.com — "corn" instead of "com" — the letters are mixed up!' },
+    ];
+
+    // numPhish can be 0 (all genuine), 1, 2, or 3
+    const numPhish = pick([1, 2, 2, 2, 3]);
+    const numReal  = 6 - numPhish;  // total always 6
+    const reals    = shuffle(realSenders).slice(0, numReal);
+    const phishs   = shuffle(phishSenders).slice(0, numPhish);
+    const all      = shuffle([...reals, ...phishs]);
+
+    return all.map(e => ({
+      name:         e.from,
+      purpose:      e.subject,
+      body:         e.body,
+      domain:       e.from.split('@')[1] || e.from,
+      clue:         e.clue || 'Real company email',
+      isPhish:      e.phishing,
+      ragAnswer:    e.phishing ? 'R' : 'G',
+      actionAnswer: e.phishing ? 'report' : 'ignore',
+      notes:        ``,  // no note — child reads the FROM address directly
+      handled:false, userRag:null, userAction:null,
+    }));
+  },
+  reportTeams: { correct: 'IT Security & Awareness Team', incorrect: 'Accounts Payable Team' },
+  completionText(mode, scenario) {
+    return `<div class="rc info"><h3>HOW TO SPOT FAKE EMAILS</h3>
+      <p>Fake emails always have a tiny mistake in the address. Look for: <strong>numbers replacing letters</strong> (g00gle, paypa1, netfl1x), <strong>extra words</strong> (company.helpdesk.xyz), or <strong>wrong endings</strong> (.net instead of .com).</p>
+      <p style="margin-top:8px;">If it feels urgent or scary — "ACT NOW!" — that's a big red flag. Real companies don't threaten you.</p>
+    </div>`;
+  },
+  plenary: {
+    reportHint: 'These were fake emails — which team handles email security and teaches people to spot them?',
+    analogy:      '🎣 Like a fishing hook with fake bait — the email looks real, but it\'s trying to hook you into giving away your password.',
+    whatHappened: 'Fake emails had tiny mistakes in their addresses — a zero instead of an O, an extra word, one wrong letter — designed to trick people into clicking.',
+    keyMove:      'Check every character in the address. One wrong letter = fake. If it feels urgent and scary — that\'s on purpose to make you panic and not think.',
+    realWorld:    'You might get fake emails pretending to be Roblox, YouTube or your school. Always read the address carefully before clicking anything!',
+    quiz: [
+      { q: 'Which email address is fake?', options: ['hr@company.com', 'security@paypa1.com', 'it@company.com'], correct: 1 },
+      { q: 'An email says "ACT NOW or your account is DELETED!" What\'s going on?', options: ['It\'s a real emergency — click fast! 😱', 'It\'s probably a phishing trick — check the address first 🔍', 'Reply to ask if it\'s real ✉️'], correct: 1 },
+      { q: 'Why do phishing emails use urgent language?', options: ['Because the sender is very busy ⏰', 'To make you panic so you click without thinking 😨', 'Because that\'s how professional emails work 💼'], correct: 1 },
+      { q: 'What should you NEVER share in an email?', options: ['Your name 👤', 'Your password 🔑', 'The date 📅'], correct: 1 },
+      { q: 'Is "support@amazon.co.uk.fakesite.com" really Amazon?', options: ['Yes — it starts with amazon ✅', 'No — the real domain is fakesite.com 🔴', 'Only if it looks official 💼'], correct: 1 },
+      { q: 'Why do phishing emails pretend to be from banks or PayPal?', options: ['Because hackers like money 💰', 'Because people trust them and act fast without checking 🏦', 'Because it is the law 📜'], correct: 1 },
+      { q: 'An email has a perfect logo and no spelling mistakes. Can it still be phishing?', options: ['No — bad spelling is always the giveaway ✍️', 'Yes — attackers can copy logos and write well 🎨', 'Only if it came from abroad 🌍'], correct: 1 },
+      { q: 'What is "spear phishing"?', options: ['Phishing with a fishing rod 🎣', 'A targeted attack using your real name and details 🎯', 'A type of DDoS attack 🌊'], correct: 1 },
+      { q: 'What is the SAFEST thing to do with a suspicious email?', options: ['Click the link to check if it\'s real 🖱️', 'Report it without opening it 🚩', 'Forward it to friends to warn them 📤'], correct: 1 },
+    ]
+  },
+};
+
+// MODULE_LIST is set at the bottom of this file with all 5 modules
+
+// Add columns for phishingModule
+MODULE_COLUMNS.phishingModule = [
+  { key: 'name',   label: 'FROM' },
+  { key: 'domain', label: 'DOMAIN' },
+  { key: 'purpose',label: 'SUBJECT' },
+];
+
+// Add actions for phishingModule
+MODULE_ACTIONS.phishingModule = [
+  { id: 'report', label: '🚩 REPORT (Fake!)', cls: 'btn-r' },
+  { id: 'ignore', label: '✓ DELIVER (Real)', cls: 'btn-g' },
+];
+
+// Add columns and actions for ransomware (if not already present)
+if (!MODULE_COLUMNS.ransomware) {
+  MODULE_COLUMNS.ransomware = [
+    { key: 'name',          label: 'DRIVE' },
+    { key: 'encryptedFiles',label: 'ENCRYPTED' },
+    { key: 'writeOpsMin',   label: 'WRITES/MIN' },
+    { key: 'newExtensions', label: 'NEW EXT' },
+  ];
+}
+if (!MODULE_ACTIONS.ransomware) {
+  MODULE_ACTIONS.ransomware = [
+    { id: 'isolate',     label: '🔒 ISOLATE DRIVE', cls: 'btn-r' },
+    { id: 'investigate', label: '🔍 INVESTIGATE',    cls: 'btn-a' },
+    { id: 'ignore',      label: '✓ IGNORE (Normal)', cls: 'btn-d' },
+  ];
 }
 
-// ── ENDGAME — delegates to gamification.js ──────────────────────
-function showEndgame(){
-  showEndSplash();
-}
+// ─────────────────────────────────────────────────────────────
+// MODULE 5: BRUTE FORCE ATTACK (rewritten for age 9)
+// ─────────────────────────────────────────────────────────────
+MODULES.bruteForce = {
+  id: 'bruteForce',
+  name: 'PASSWORD ATTACK',
+  emailSender: () => pick(['alerts@loginwatch.net','monitor@secops.io','access-alerts@network.local']),
+  emailSubject: () => pick(['Password Guessing Alert!','Login Attempts Spiking','Suspicious Login Activity Detected','Account Attack Warning']),
+  emailBody() {
+    return pick([
+      `Hi,\n\nSomething weird is happening with our login system. Someone — or something — is trying to guess passwords really fast!\n\nCan you check which accounts are under attack using the Access Attempt Analyser?\n\nThanks,\nSecurity Team`,
+      `Hello Agent,\n\nOur login monitor flagged some accounts getting hammered with password guesses. Some are fine, some look like a real attack.\n\nPlease load the Access Attempt Analyser and check each one!\n\nAccess Watch`,
+      `Hi,\n\nAlert! Something is trying to break into accounts by guessing passwords over and over. Load the Access Attempt Analyser — look at how fast the attempts are and how many computers are doing it.\n\nLogin Monitor`,
+    ]);
+  },
+  tools: {
+    correct: 'Access Attempt Analyser',
+    decoys: ['Network Traffic Monitor','File Integrity Monitor','Email Header Analyser','Process Monitor','Password Checker'],
+  },
+    generateScenario(params={}) {
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const accounts=[{name:'admin',purpose:'Main admin account'},{name:'j.henderson',purpose:'Staff account'},{name:'ceo',purpose:'CEO account'},{name:'svc_backup',purpose:'Backup service account'},{name:'k.okafor',purpose:'Staff account'},{name:'root',purpose:'Super-admin account'},{name:'reception',purpose:'Reception desk account'},{name:'s.mehta',purpose:'Staff account'},{name:'db_service',purpose:'Database account'}];
+    const chosen=shuffle(accounts).slice(0,numItems);
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const edgeAt=includeEdgeCase?numEscalations:-1;
+    return chosen.map((acc,i)=>{
+      if(rp[i]==='R'){const att=randInt(300,2000);const ips=randInt(1,2);const intv=randInt(20,150);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:`~${intv}ms`,ragAnswer:'R',actionAnswer:'lockAccount',notes:`${att.toLocaleString()}/min from ${ips===1?'1 computer':ips+' computers'}, every ~${intv}ms.`,handled:false,userRag:null,userAction:null};}
+      else if(rp[i]==='A'){const att=randInt(60,299);const ips=randInt(2,6);const intv=randInt(150,450);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:`~${intv}ms`,ragAnswer:'A',actionAnswer:'investigate',notes:`${att}/min from ${ips} computers — attempts are fast and evenly spaced, like a robot.`,handled:false,userRag:null,userAction:null};}
+      else if(i===edgeAt){const att=randInt(150,500);const intv=randInt(30,120);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:1,intervalMs:`~${intv}ms`,ragAnswer:'R',actionAnswer:'lockAccount',notes:'Account locked after loads of fast attempts — then a successful login! The attacker may have cracked the password. ⚠️',handled:false,userRag:null,userAction:null};}
+      else{const att=randInt(0,7);const ips=randInt(3,40);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:'Varied',ragAnswer:'G',actionAnswer:'ignore',notes:`${att}/min across ${ips} different devices.`,handled:false,userRag:null,userAction:null};}
+    });
+  },
+  reportTeams: {
+    correct:   'Identity & Access Management (IAM) Team',
+    incorrect: 'Facilities Management Team',
+  },
+  completionText(mode, scenario) {
+    const attacked = scenario.filter(s => s.ragAnswer !== 'G');
+    if (!attacked.length) {
+      return `<div class="rc ok"><h3>✓ All Clear — logins look normal!</h3><p>Just the usual occasional mistype. Good check!</p></div>`;
+    }
+    return `<div class="rc info"><h3>PASSWORD ATTACK — KEY FACTS</h3>
+      <p>A brute force attack uses a program to try thousands of passwords automatically — way faster than a human could type.</p>
+      <p style="margin-top:8px;">Key clues: very high attempts, from very few IPs, with a robotic regular interval. Locking the account stops it even if the password hasn't been guessed yet.</p></div>`;
+  },
+  plenary: {
+    reportHint:   'Password attacks are about breaking into accounts — which team manages who can log in?',
+    analogy:      '🔑 Like trying every locker combination at school until one works — except a computer tries millions in seconds!',
+    whatHappened: 'A program was automatically firing password guesses at our accounts, over and over, trying to break in.',
+    keyMove:      'Very fast + very few IPs + clockwork timing = Lock it. Suspicious pattern = Investigate. Normal occasional typos = Leave it.',
+    realWorld:    'This is why "password123" is dangerous — it would be cracked in seconds. A long random password takes years!',
+    quiz: [
+      { q: '800 login attempts per minute from 1 computer. What is it?', options: ['Normal — people type fast 🤷', 'A brute force attack 🔴', 'A DDoS attack 🌊'], correct: 1 },
+      { q: 'Which password survives a brute force attack longest?', options: ['cat123 🐱', 'xK9#mQ2! 🔐', 'your birthday 🎂'], correct: 1 },
+      { q: 'What is two-factor authentication (2FA)?', options: ['Using two passwords 🔑🔑', 'A second check (like a code on your phone) so stolen passwords alone don\'t work 📱', 'Having two email accounts 📧'], correct: 1 },
+      { q: 'Why are long passwords better?', options: ['They are easier to remember 🧠', 'There are more combinations to try, so it takes much longer to guess 🔐', 'They look more professional 💼'], correct: 1 },
+      { q: 'A locked account then shows a successful login. What does that mean?', options: ['The real user got lucky 🍀', 'The attacker may have guessed the password — investigate immediately! 🔴', 'The lock didn\'t work properly 🔒'], correct: 1 },
+      { q: 'What is a "dictionary attack"?', options: ['Hacking using a dictionary 📖', 'Trying thousands of common words and passwords automatically 🔑', 'A very slow brute force attack 🐢'], correct: 1 },
+      { q: 'What does "account lockout" do?', options: ['Permanently deletes the account 🗑️', 'Blocks the account after too many wrong passwords 🔒', 'Sends an email to the hacker 📧'], correct: 1 },
+      { q: 'Why do attackers use many different computers for brute force?', options: ['To confuse the server 😵', 'To spread attempts so no single IP gets blocked 🌐', 'Because one computer is not fast enough 💻'], correct: 1 },
+      { q: 'Which is the hardest password to brute force?', options: ['password123 🙈', 'YourPetName2024 🐶', 'k#9mQx!2vL@p 🔐'], correct: 2 },
+    ]
+  },
+};
 
-function resetAll(){
-  /*vox*/clearTimeout(GS.autoTimer);clearTimeout(GS.stuckTimer);
-  document.getElementById('endOverlay').classList.remove('open');
-  document.getElementById('endSplash').classList.remove('open');
-  document.getElementById('ipOverlay').classList.remove('open');
-  document.getElementById('plenaryModal').classList.remove('open');
-  document.body.classList.remove('alert-mode');
-  GS.briefingsSeen=new Set();
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingsSeen:new Set(),stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
-  rHearts();rXP();rRound();
-  document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
-  document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
-  document.getElementById('resultsView').innerHTML='Results appear here after each mission.';
-  document.getElementById('chatMsgs').innerHTML='';
-  resetTool();clearGlows();
-  document.getElementById('toolSel').innerHTML='<option value="">— Choose your investigation tool —</option>';
-  document.getElementById('scenProg').textContent='';
-  document.getElementById('chatMsgs').innerHTML='';
-  setSim('READY');setStep(0);
-  // Re-pulse the refresh button to guide child
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
-  gcMsg('zara', pick(GENERAL_GROUP_CHAT.welcome[0].msgs),600);
-  gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
-}
+// ── MODULE POOL: 5 modules — engine picks 4 at random each session ──
+MODULE_LIST.length = 0;
+['ddos','malware','ransomware','phishingModule','bruteForce','socialEng','usbDrop'].forEach(m => MODULE_LIST.push(m));
 
-// ── UTILS ─────────────────────────────────────────────────────
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function escA(s){return esc(s).replace(/'/g,'&#39;');}
+MODULE_COLUMNS.bruteForce = [
+  { key: 'name',           label: 'ACCOUNT' },
+  { key: 'attemptsPerMin', label: 'ATTEMPTS/MIN' },
+  { key: 'sourceIPs',      label: 'SOURCE IPs' },
+  { key: 'intervalMs',     label: 'INTERVAL' },
+];
+
+MODULE_ACTIONS.bruteForce = [
+  { id: 'lockAccount', label: '🔒 LOCK ACCOUNT',   cls: 'btn-r' },
+  { id: 'investigate', label: '🔍 INVESTIGATE',    cls: 'btn-a' },
+  { id: 'ignore',      label: '✓ IGNORE (Normal)', cls: 'btn-d' },
+];
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 6: SOCIAL ENGINEERING
+// ─────────────────────────────────────────────────────────────
+MODULES.socialEng = {
+  id: 'socialEng',
+  name: 'SOCIAL ENGINEERING',
+  tools: {
+    correct: 'Help Desk Log Analyser',
+    decoys: ['Network Traffic Monitor','Process Monitor','File Integrity Monitor','Email Header Analyser','Access Attempt Analyser','USB Device Log'],
+  },
+  emailSender: () => pick(['security@infosec.io','alerts@staffwatch.net','hr-security@company.com']),
+  emailSubject: () => pick(['Unusual Staff Request Flagged','Help Desk Alert: Suspicious Caller','Social Engineering Attempt Reported']),
+  emailBody(scenario){
+    return pick([
+      `Hi,\n\nOur help desk has flagged some unusual requests today.\n\nSomeone appears to be trying to trick staff into handing over passwords or access by pretending to be someone they're not.\n\nPlease review the Help Desk Ticket Log below and decide which requests are genuine.\n\nSecurity Team`,
+      `Hi,\n\nWe've had reports of people calling staff and pretending to be from IT Support, Microsoft, or even senior managers.\n\nThey're trying to get passwords or access to systems. Please check the ticket log and flag anything suspicious.\n\nIT Security`,
+    ]);
+  },
+  tool: 'helpdesk',
+  toolLabel: '🎭 HELP DESK LOG',
+  briefing: {
+    title: 'Social Engineering',
+    tagline: 'Tricking people instead of hacking computers',
+    summary: 'Sometimes hackers don\'t attack computers at all — they attack people! They call, email or even visit in person pretending to be someone trustworthy (like IT support or your boss) to trick you into giving them passwords or access. It\'s called "social engineering" because they\'re engineering (tricking) people, not machines.',
+    watchFor: 'Urgent requests for passwords • Someone pretending to be IT, Microsoft or management • Requests that skip the normal process • Pressure to act quickly or secretly',
+    realWorld: 'Famous hack: In 2020, Twitter was hacked when attackers called Twitter staff pretending to be IT, tricked them into giving access, and took over celebrity accounts including Elon Musk\'s.',
+  },
+  generateScenario(params={}){
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const tickets=[
+      {caller:'Unknown — said they were from Microsoft',dept:'External',req:'Asked for the admin password so they could "fix a virus remotely"',process:'No ticket number. Called out of the blue.',rag:'R',action:'block',note:'Microsoft never calls to ask for your password.'},
+      {caller:'Someone claiming to be the CEO',dept:'Unknown',req:'Asked receptionist to email them the staff payroll spreadsheet immediately',process:'Sent via personal Gmail, not company email. Said not to tell anyone.',rag:'R',action:'block',note:'Legitimate managers use company email and follow normal processes.'},
+      {caller:'Said they were from IT Support',dept:'IT (unverified)',req:'Needed the Wi-Fi password for a "new employee" who hadn\'t been set up yet',process:'No help desk ticket. Sounded very urgent.',rag:'R',action:'block',note:'New employees are set up through HR. IT never asks for Wi-Fi passwords this way.'},
+      {caller:'Someone claiming to be a new supplier',dept:'External',req:'Asked the finance team to update their bank details in the system',process:'Email came from a free Gmail account, not the supplier\'s usual address.',rag:'R',action:'block',note:'Bank detail changes must always be verified by phone using a known number.'},
+      {caller:'Person at reception, no ID',dept:'Unknown',req:'Said they\'d left their access card at home and needed to be let in',process:'Not on the visitor list. No manager came to meet them.',rag:'A',action:'investigate',note:'Could be genuine but must be verified — never let in unverified visitors.'},
+      {caller:'Caller claiming to be from the bank',dept:'External',req:'Said the company account had been frozen and needed login details to unfreeze it',process:'Wouldn\'t give a case reference number.',rag:'R',action:'block',note:'Banks never ask for your login details by phone.'},
+      {caller:'Email from "HR"',dept:'Internal (unverified)',req:'Asking all staff to confirm their passwords for a "security audit"',process:'Email was from hr@company-helpdesk.com, not hr@company.com',rag:'R',action:'block',note:'Spot the fake domain — helpdesk.com not company.com.'},
+      {caller:'Sarah from IT Support (known staff member)',dept:'IT',req:'Logged a ticket to reset a user\'s password following the standard process',process:'Proper ticket number. Verified via internal system.',rag:'G',action:'ignore',note:'Standard IT process followed correctly.'},
+      {caller:'New employee James via line manager',dept:'HR',req:'Access badge being processed — manager requested temporary visitor badge',process:'HR ticket raised. Manager confirmed by phone.',rag:'G',action:'ignore',note:'Correct process followed through proper channels.'},
+      {caller:'IT department',dept:'IT',req:'Scheduled password reset reminder sent to all staff (it\'s policy every 90 days)',process:'Sent from it@company.com with a proper ticket reference.',rag:'G',action:'ignore',note:'Legitimate scheduled process.'},
+      {caller:'Priya from Finance (known staff)',dept:'Finance',req:'Asked IT to reset her own email password — she was locked out',process:'Called from her desk extension. IT verified her identity with security questions.',rag:'G',action:'ignore',note:'Verified identity through proper checks.'},
+      {caller:'Facilities team',dept:'Facilities',req:'Emailed staff that the fire alarm test is at 2pm Thursday',process:'Sent from facilities@company.com. No links, no requests for info.',rag:'G',action:'ignore',note:'Normal internal notice — asks for nothing.'},
+      {caller:'Cleaning supervisor (badged visitor)',dept:'External (approved)',req:'Signed in at reception for the regular evening clean',process:'On the pre-approved visitor list. Badge issued and logged.',rag:'A',action:'investigate',note:'Approved but always worth a quick check against the visitor list.'},
+    ];
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const reds=tickets.filter(t=>t.rag==='R');
+    const ambs=tickets.filter(t=>t.rag==='A');
+    const greens=tickets.filter(t=>t.rag==='G');
+    const edgeItem=includeEdgeCase&&ambs.length?[pick(ambs)]:[];
+    const redItems=shuffle(reds).slice(0,rp.filter(r=>r==='R').length);
+    const ambItems=rp.filter(r=>r==='A').length>edgeItem.length?shuffle(ambs.filter(a=>!edgeItem.includes(a))).slice(0,rp.filter(r=>r==='A').length-edgeItem.length):[];
+    const escalated=[...redItems,...ambItems,...edgeItem];
+    const needed=numItems-escalated.length;
+    const greenItems=shuffle(greens).slice(0,needed);
+    return shuffle([...escalated,...greenItems]).map(t=>({
+      name:t.caller,purpose:t.dept,
+      request:t.req,process:t.process,
+      ragAnswer:t.rag,actionAnswer:t.action,
+      notes:t.note,
+      handled:false,userRag:null,userAction:null,
+    }));
+  },
+  columns:[
+    {key:'name',      label:'CALLER / SENDER'},
+    {key:'purpose',   label:'DEPT'},
+    {key:'request',   label:'WHAT THEY WANTED'},
+    {key:'process',   label:'HOW THEY ASKED'},
+  ],
+  actions:{R:'block',A:'investigate',G:'ignore'},
+  actionLabels:{block:'🚫 BLOCK & REPORT',investigate:'🔍 VERIFY FIRST',ignore:'✅ LEGITIMATE'},
+  ragRules:{
+    R:'Asking for passwords / access / money — especially urgently or secretly → RED',
+    A:'Unusual but not obviously fake — needs verification before acting → AMBER',
+    G:'Follows proper process with verified identity → GREEN',
+  },
+  completionText(){
+    return `<div class="rc info"><h3>SOCIAL ENGINEERING — KEY FACTS</h3>
+    <p>Social engineers attack PEOPLE not computers. They use urgency, authority and trust to make you act without thinking.</p>
+    <p style="margin-top:8px;"><strong>Remember the golden rules:</strong> Never give passwords to anyone who asks. Always verify identity through a different channel. Legitimate IT never needs your password.</p></div>`;
+  },
+  reportTeams:{correct:'Security Awareness Team',incorrect:'Facilities Management'},
+  plenary:{
+    analogy:'Social engineering is like a con artist in a film — they use a disguise and a convincing story to steal something, without ever needing to break down the door.',
+    whatHappened:'Someone pretended to be trusted (IT, Microsoft, your boss) and tried to trick staff into giving away passwords or access.',
+    keyRule:'Legitimate organisations NEVER ask for your password. If anyone does — it\'s a scam.',
+    realWorld:'The 2020 Twitter hack used social engineering. Attackers called Twitter staff pretending to be IT, got access, and hijacked accounts with 100 million followers.',
+    reportQ:'Who should you call first if you think someone is trying to social engineer you?',
+    reportA:'Your IT Security or help desk team — straight away, before doing anything else.',
+    quiz:[
+      {q:'Microsoft calls you to say your computer has a virus and they need your password. What should you do?',options:['Give them the password so they can fix it 😬','Hang up — Microsoft never calls asking for passwords 📵','Check if your computer is slow first 🐢'],correct:1},
+      {q:'Someone at the door says they\'re from IT and forgot their pass. What should you do?',options:['Let them in — they look friendly 😊','Call IT to verify before letting anyone in 📞','Ask them to wait and then ignore them 🤷'],correct:1},
+      {q:'Your "boss" emails from a Gmail account asking for the payroll file urgently. What do you do?',options:['Send it — your boss needs it! 📧','Call your boss on their known number to check — bosses use company email 📞','Forward it just in case 🤷'],correct:1},
+      {q:'Why do social engineers create urgency ("do it NOW!")?',options:['Because they\'re very busy people 🏃','So you act without thinking or checking 🧠','Because computers work faster when things are urgent ⚡'],correct:1},
+      {q:'A caller says they\'re from your bank and need your login details to fix a problem. What do you do?',options:['Give them the details — it\'s the bank! 🏦','Hang up and call the bank back on the number on their website 📞','Wait to see if your account gets frozen 😬'],correct:1},
+      {q:'What does "social engineering" mean?',options:['Building bridges and roads 🏗️','Tricking people instead of hacking computers 🎭','A type of computer virus 💻'],correct:1},
+      {q:'Someone asks for your password to "test the system." What do you do?',options:['Give it — it\'s just a test ✅','Refuse — no legitimate test needs your actual password 🚫','Change your password then give them the old one 🔑'],correct:1},
+      {q:'The safest thing to do when you\'re not sure if a request is genuine is:',options:['Just do what they ask to be helpful 😊','Verify through a different, trusted channel first 📞','Ask your friend what they think 👥'],correct:1},
+      {q:'What makes social engineering attacks hard to spot?',options:['They happen very fast ⚡','They use real-looking details and sound convincing 🎭','They only happen at night 🌙'],correct:1},
+    ],
+  },
+};
+
+MODULE_LIST.push('socialEng');
+MODULE_COLUMNS.socialEng = [
+  {key:'name',    label:'CALLER / SENDER'},
+  {key:'purpose', label:'DEPARTMENT'},
+  {key:'request', label:'WHAT THEY WANTED'},
+  {key:'process', label:'HOW THEY ASKED'},
+];
+
+// ─────────────────────────────────────────────────────────────
+// MODULE 7: USB DROP ATTACK
+// ─────────────────────────────────────────────────────────────
+MODULES.usbDrop = {
+  id: 'usbDrop',
+  name: 'USB DROP ATTACK',
+  tools: {
+    correct: 'USB Device Log',
+    decoys: ['Network Traffic Monitor','Process Monitor','File Integrity Monitor','Email Header Analyser','Access Attempt Analyser','Help Desk Log Analyser'],
+  },
+  emailSender: () => pick(['alerts@usb-monitor.net','security@devicewatch.io','it-security@company.com']),
+  emailSubject: () => pick(['Unknown USB Devices Detected','USB Security Alert','Suspicious Device Connections Logged']),
+  emailBody(scenario){
+    return pick([
+      `Hi,\n\nOur security system has detected USB devices being plugged into company computers.\n\nHackers sometimes leave infected USB sticks in car parks or corridors hoping curious staff will plug them in.\n\nPlease review the USB Device Log and flag anything suspicious.\n\nIT Security`,
+      `Hi,\n\nSeveral unknown USB devices have been plugged into computers today. This could be a USB drop attack — where hackers leave infected memory sticks around hoping someone picks them up.\n\nCheck the log below carefully.\n\nSecurity Operations`,
+    ]);
+  },
+  tool: 'usb',
+  toolLabel: '🔌 USB DEVICE LOG',
+  briefing:{
+    title:'USB Drop Attack',
+    tagline:'The danger of unknown USB drives',
+    summary:'A USB drop attack is when a hacker leaves infected USB drives (memory sticks) somewhere people will find them — like in a car park, reception, or on a desk. When a curious person plugs it in, the malware automatically runs and infects the computer. Studies show that nearly half of people who find a USB stick will plug it in!',
+    watchFor:'Unknown device names • Devices that auto-run programs • USB sticks left in unusual places • New devices connected outside of working hours',
+    realWorld:'In 2010, the Stuxnet worm — one of the most sophisticated cyberweapons ever — spread via USB drops to sabotage nuclear facilities in Iran. Someone found a USB stick in a car park and plugged it in.',
+  },
+  generateScenario(params={}){
+    const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
+    const devices=[
+      {name:'USB_FOUND_CARPARK',type:'Unknown USB Stick',location:'Car park — found on the ground',time:'08:14',auto:'autorun.inf executed immediately',files:'setup.exe, update.bat',rag:'R',action:'quarantine',note:'Found outside + autorun = almost certainly malicious. Isolate the computer immediately.'},
+      {name:'MYSTERY_STICK_001',type:'Unknown USB Stick',location:'Reception desk — no owner',time:'12:32',auto:'Tried to run hidden_update.exe',files:'hidden_update.exe, invoice.pdf (fake)',rag:'R',action:'quarantine',note:'Unknown device trying to run hidden executables. Classic USB drop attack.'},
+      {name:'FREE_GIFT_USB',type:'USB Stick (branded "Free Gift")',location:'Conference room — left after meeting',time:'14:55',auto:'No autorun',files:'gift_voucher.exe (suspicious)',rag:'R',action:'quarantine',note:'Branded "free gift" USBs left at events are a classic delivery method for malware.'},
+      {name:'UNKNOWN_DEVICE_02',type:'USB Stick',location:'Plugged into finance PC',time:'23:47',auto:'No autorun detected',files:'viewed 3 files then removed',rag:'A',action:'investigate',note:'After-hours + finance PC + unknown device = very suspicious even without autorun.'},
+      {name:'VISITOR_USB_??',type:'Unknown device',location:'Meeting room PC',time:'09:22',auto:'No autorun',files:'accessed network drive briefly',rag:'A',action:'investigate',note:'Visitor USB accessing network drives needs investigation — this shouldn\'t happen.'},
+      {name:'JIM_PERSONAL_USB',type:'Personal USB (staff member)',location:'Jim\'s workstation',time:'11:05',auto:'No autorun',files:'personal_photos.jpg, cv.docx',rag:'A',action:'investigate',note:'Personal USBs are against policy — could accidentally introduce malware even if not intentional.'},
+      {name:'CORP_BACKUP_DRIVE',type:'Company Backup Drive (labelled)',location:'IT server room',time:'02:00',auto:'No autorun',files:'backup files only',rag:'G',action:'ignore',note:'Scheduled backup in IT room using labelled company equipment — expected.'},
+      {name:'IT_INSTALL_DRIVE',type:'IT Department USB (labelled, asset tagged)',location:'IT Support desk',time:'10:30',auto:'No autorun',files:'software_install.msi (verified hash)',rag:'G',action:'ignore',note:'Labelled IT asset with verified software. Normal IT operation.'},
+      {name:'ENCRYPTED_CORP_USB',type:'Company encrypted USB (IronKey)',location:'Finance Director\'s PC',time:'09:15',auto:'No autorun',files:'quarterly_report.xlsx',rag:'G',action:'ignore',note:'Company-issued encrypted USB used by authorised staff during working hours.'},
+      {name:'IT_ASSET_4471',type:'Company USB (asset-tagged)',location:'Helpdesk PC',time:'10:48',auto:'No autorun',files:'driver_pack.zip (verified)',rag:'G',action:'ignore',note:'Tagged company asset used by IT during work hours.'},
+      {name:'PRESENTER_USB',type:'Company presentation USB (labelled)',location:'Meeting room PC',time:'13:30',auto:'No autorun',files:'slides.pptx',rag:'G',action:'ignore',note:'Labelled company device used for a scheduled meeting.'},
+    ];
+    const rp=buildRagProfile(escalationType,numEscalations);
+    const reds=devices.filter(d=>d.rag==='R');
+    const ambs=devices.filter(d=>d.rag==='A');
+    const greens=devices.filter(d=>d.rag==='G');
+    const edgeItem=includeEdgeCase&&ambs.length?[pick(ambs)]:[];
+    const redItems=shuffle(reds).slice(0,rp.filter(r=>r==='R').length);
+    const ambItems=rp.filter(r=>r==='A').length>edgeItem.length?shuffle(ambs.filter(a=>!edgeItem.includes(a))).slice(0,rp.filter(r=>r==='A').length-edgeItem.length):[];
+    const escalated=[...redItems,...ambItems,...edgeItem];
+    const needed=numItems-escalated.length;
+    const greenItems=shuffle(greens).slice(0,needed);
+    return shuffle([...escalated,...greenItems]).map(d=>({
+      name:d.name,purpose:d.type,
+      location:d.location,time:d.time,
+      autorun:d.auto,files:d.files,
+      ragAnswer:d.rag,actionAnswer:d.action,
+      notes:d.note,
+      handled:false,userRag:null,userAction:null,
+    }));
+  },
+  columns:[
+    {key:'name',     label:'DEVICE ID'},
+    {key:'purpose',  label:'TYPE'},
+    {key:'location', label:'WHERE FOUND'},
+    {key:'autorun',  label:'AUTO-RUN?'},
+  ],
+  actions:{R:'quarantine',A:'investigate',G:'ignore'},
+  actionLabels:{quarantine:'🔌 QUARANTINE PC',investigate:'🔍 INVESTIGATE',ignore:'✅ AUTHORISED'},
+  ragRules:{
+    R:'Unknown device + autorun programs OR found in unusual location → RED',
+    A:'Unknown or personal device without autorun — needs checking → AMBER',
+    G:'Company-issued, labelled, authorised device → GREEN',
+  },
+  completionText(){
+    return `<div class="rc info"><h3>USB DROP ATTACK — KEY FACTS</h3>
+    <p>If you find a USB stick, do NOT plug it in — ever. Tell IT security instead. Curiosity is exactly what attackers are counting on.</p>
+    <p style="margin-top:8px;"><strong>Remember:</strong> Autorun = instant infection. After-hours + unknown device = big red flag. Only use company-issued, labelled USB devices.</p></div>`;
+  },
+  reportTeams:{correct:'IT Security & Incident Response',incorrect:'Facilities Management'},
+  plenary:{
+    analogy:'A USB drop attack is like finding a sweet on the floor — it might look fine, but you have no idea what\'s in it or where it\'s been. Most sensible people wouldn\'t eat it. Don\'t plug in unknown USB sticks either!',
+    whatHappened:'Someone left infected USB sticks around the building hoping a staff member would plug one in. The USB automatically ran malicious software the moment it was connected.',
+    keyRule:'Never plug in a USB stick you didn\'t buy yourself or get from IT. If you find one, hand it to IT Security.',
+    realWorld:'Stuxnet, discovered in 2010, used USB drop attacks to destroy nuclear centrifuges in Iran. It was the most sophisticated cyberweapon ever seen at the time.',
+    reportQ:'You find a USB stick in the car park with "STAFF SALARIES 2024" written on it. What do you do?',
+    reportA:'Hand it to IT Security immediately without plugging it in. The label is designed to make you curious!',
+    quiz:[
+      {q:'You find a USB stick in the car park. What do you do?',options:['Plug it in to see what\'s on it 🔌','Hand it straight to IT Security without plugging it in 🛡️','Keep it — finders keepers! 🎁'],correct:1},
+      {q:'What makes a USB drop attack so effective?',options:['USB sticks are very fast ⚡','People are naturally curious and want to see what\'s on the drive 🤔','USB sticks are free 🆓'],correct:1},
+      {q:'What does "autorun" mean on a USB stick?',options:['The USB charges your battery automatically 🔋','Programs run automatically the moment the USB is plugged in 💻','The USB runs faster than normal 🏃'],correct:1},
+      {q:'A USB stick with a label saying "WAGES - CONFIDENTIAL" is left on your desk. What should you do?',options:['Open it — it might be important! 📂','Report it to IT Security immediately without plugging it in 🚨','Leave it where it is and ignore it 🤷'],correct:1},
+      {q:'Which USB stick is safe to plug in?',options:['A USB you found in the car park 🅿️','A USB given to you as a "free gift" at a conference 🎁','A company-issued, encrypted USB from your IT department 💼'],correct:2},
+      {q:'Why might a hacker label a USB stick "STAFF SALARIES"?',options:['To be helpful and organised 📁','To make you curious so you plug it in 🤔','Because it actually contains salary information 💰'],correct:1},
+      {q:'Stuxnet — one of the most powerful cyberweapons ever — used USB drop attacks. What did it destroy?',options:['The internet 🌐','Nuclear facility centrifuges in Iran ⚛️','Office printers 🖨️'],correct:1},
+      {q:'An unknown USB drive is plugged into a finance computer at 2am. This is:',options:['Normal — maybe someone was working late 🌙','Very suspicious — investigate immediately 🔴','Fine as long as the files look normal 📄'],correct:1},
+      {q:'Personal USB sticks (your own from home) in the office are:',options:['Fine — they\'re yours so you know they\'re safe ✅','Against policy and risky — they might carry malware from home 🚫','Only a problem if they have autorun 🔌'],correct:1},
+    ],
+  },
+};
+
+MODULE_LIST.push('usbDrop');
+MODULE_COLUMNS.usbDrop = [
+  {key:'name',     label:'DEVICE ID'},
+  {key:'purpose',  label:'DEVICE TYPE'},
+  {key:'location', label:'WHERE FOUND / CONNECTED'},
+  {key:'autorun',  label:'AUTO-RUN DETECTED?'},
+];
