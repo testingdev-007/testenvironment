@@ -777,19 +777,17 @@ html,body{ height:var(--app-h); }
 <script>
 window.addEventListener('error',function(e){
   var b=document.getElementById('__errbox');
-  if(b){b.style.display='block';b.textContent+='ERROR: '+e.message+'
-  at '+(e.filename||'').split('/').pop()+':'+e.lineno+'
-
-';}
+  if(b){b.style.display='block';b.textContent+='ERROR: '+e.message+' | at '+(e.filename||'').split('/').pop()+':'+e.lineno+':'+e.colno+'\n\n';}
+});
+window.addEventListener('unhandledrejection',function(e){
+  var b=document.getElementById('__errbox');
+  if(b){b.style.display='block';b.textContent+='PROMISE ERROR: '+(e.reason&&e.reason.message||e.reason)+'\n\n';}
 });
 window.addEventListener('load',function(){
   setTimeout(function(){
     var b=document.getElementById('__errbox');
     if(typeof refreshInbox!=='function'){
-      if(b){b.style.display='block';b.textContent+='⚠ refreshInbox is NOT defined — the engine script did not load.
-Check the file names match exactly and all files are in the same folder.
-
-';}
+      if(b){b.style.display='block';b.textContent+='WARNING: refreshInbox is NOT defined - the engine script did not load. Check file names match exactly and all files are in the same folder.\n\n';}
     }
   },1500);
 });
