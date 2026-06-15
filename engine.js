@@ -290,8 +290,9 @@ function applyAdmin(){
 
 // ── REFRESH INBOX ─────────────────────────────────────────────
 function refreshInbox(){
-  try{SFX.newMail();}catch(e){}/*vox*/clearTimeout(GS.autoTimer);
-  document.getElementById('btnRefresh').classList.remove('pulse-glow');
+  try{
+  try{SFX.newMail();}catch(e){}clearTimeout(GS.autoTimer);
+  var _br=document.getElementById('btnRefresh');if(_br)_br.classList.remove('pulse-glow');
   if(GS.active){gcMsg('priya','Finish the current case before checking for new emails.');return;}
   // Reset email/results pane for fresh mission
   document.getElementById('welcomeMsg').style.display='block';
@@ -303,6 +304,12 @@ function refreshInbox(){
   if(GS.forceMod){const m=GS.forceMod;GS.forceMod=null;dispatchMod(m);return;}
   if(!GS.queue.length)buildQueue();
   dispatchMod(GS.queue.shift());
+  }catch(err){
+    console.error('refreshInbox error:',err);
+    var b=document.getElementById('__errbox');
+    if(b){b.style.display='block';b.textContent+='refreshInbox ERROR: '+err.message+'\n  '+(err.stack||'').split('\n')[1]+'\n\n';}
+    else{ gcMsg('priya','⚠ Something went wrong loading the case: '+err.message); }
+  }
 }
 function dispatchMod(id){
   if(id==='__phish__')  loadPhish();
@@ -603,7 +610,7 @@ function renderToolData(){
       (MODULE_ACTIONS[id]||[]).forEach(a=>{
         const cls=a.id==='block'||a.id==='quarantine'||a.id==='isolate'||a.id==='lockAccount'||a.id==='report'?'btn-r':
                   a.id==='ignore'?'btn-d':'btn-a';
-        html+=`<button class="btn btn-sm ${cls}" onclick="doAction(${i},'${a.id}')">${a.label}</button>`;
+        html+=`<button class="btn btn-sm ${cls}" data-row="${i}" data-act="${a.id}">${a.label}</button>`;
       });
       html+=`</div>`;
     } else if(done){
@@ -613,6 +620,20 @@ function renderToolData(){
     html+=`</div>`;
   });
   document.getElementById('toolData').innerHTML=html;
+  // Single delegated click handler — bound once, reads index from data-attr.
+  // This eliminates any chance of stale/double inline handlers.
+  var td=document.getElementById('toolData');
+  if(td && !td._delegated){
+    td._delegated=true;
+    td.addEventListener('click',function(ev){
+      var btn=ev.target.closest('button[data-row]');
+      if(!btn)return;
+      ev.stopPropagation();
+      var row=parseInt(btn.getAttribute('data-row'),10);
+      var act=btn.getAttribute('data-act');
+      if(!isNaN(row)&&act)doAction(row,act);
+    });
+  }
   updBar();
   // Start the stuck-hint timer once data is showing (if not all done)
   if(GS.scenario&&!GS.scenario.every(s=>s.handled)){startStuckTimer();}
@@ -630,10 +651,27 @@ function doAction(rowIdx,actId){
   item.handled=true;
   item.userAction=actId;
   const ao=(actId===item.actionAnswer);
-  if(ao){try{SFX.correct();}catch(e){}addXP(15);gcMsg('marcus','✓ Nice one! +15 XP 🎯',150);gcMod(GS.modId,'onActionCorrect',600);}
-  else{loseH('Wrong action');addXP(-5);gcMsg('zara','Not quite — have another think on the next one! (-5 XP)',150);gcMod(GS.modId,'onActionWrong',600);}
-  // DDoS graph
-  // graph removed
+  // Varied XP messages so it doesn't feel robotic
+  var rightMsgs=['✓ Spot on! +15 XP 🎯','✓ Nailed it! +15 XP ⭐','✓ Great call! +15 XP 💪','✓ Exactly right! +15 XP 🔥','✓ Brilliant! +15 XP 🌟'];
+  var wrongMsgs=['Not quite — but keep going! (-5 XP)','Hmm, not this time. (-5 XP)','Close! Have another think next time. (-5 XP)','That one slipped through. (-5 XP)','Tricky one — you\'ll get the next! (-5 XP)'];
+  var rightWho=pick(['marcus','zara','priya']);
+  var wrongWho=pick(['zara','priya','marcus']);
+  if(ao){
+    try{SFX.correct();}catch(e){}
+    addXP(15);
+    gcMsg(rightWho, pick(rightMsgs), 150);
+    // Reinforce WHY it was right — use the item's note
+    if(item.notes){ gcMsg('priya','💡 '+item.notes, 1100); }
+    gcMod(GS.modId,'onActionCorrect',2000);
+  } else {
+    loseH('Wrong action');
+    addXP(-5);
+    gcMsg(wrongWho, pick(wrongMsgs), 150);
+    // Reinforce WHY: state the correct action + the reason
+    var correctLabel=(MODULE_ACTIONS[GS.modId].find(function(a){return a.id===item.actionAnswer;})||{}).label||item.actionAnswer;
+    gcMsg('priya','💡 The right call was "'+correctLabel+'". '+(item.notes||''), 1100);
+    gcMod(GS.modId,'onActionWrong',2200);
+  }
   renderToolData();
   const all=GS.scenario.every(s=>s.handled);
   if(all){setTimeout(()=>{
