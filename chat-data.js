@@ -253,7 +253,7 @@ var MODULE_GROUP_CHAT = {
     ],
     onHalfway:[
       { persona:'priya',  msgs:["Good progress. Remember: lots of attempts + very fast + from few computers = brute force attack."] },
-      { persona:'marcus', msgs:["Halfway! Don't forget — 7 attempts from 40 different devices = probably real users. 2000 from 1 computer = bot."] },
+      { persona:'marcus', msgs:["Halfway! A handful of attempts spread across many devices = normal humans. 2000/min from 1-2 computers = definitely a bot."] },
     ],
     onActionWrong:[
       { persona:'priya',  msgs:["Check both the number of attempts AND how many different computers they came from.","High attempts from one or two computers = attack. Low attempts spread across loads of devices = normal humans.","What's the interval between attempts? Very regular timing is a bot giveaway."] },
@@ -299,7 +299,7 @@ var MODULE_GROUP_CHAT = {
     onLoad_1:[
       { persona:'marcus', msgs:["Unknown USB sticks plugged into our computers! This could be a USB drop attack 🔌","Someone might have left infected USB drives around the building on purpose!","A USB drop attack is when hackers leave infected memory sticks for curious people to find and plug in.","Real talk — studies show loads of people will plug in a USB they find. Hackers know this!"] },
       { persona:'zara',   msgs:["Ugh — unknown USB sticks showing up 😤 Classic USB drop attack!","Hackers leave USBs in car parks and corridors hoping someone picks them up. Super sneaky!","Found a USB? DON'T plug it in! That's the number one rule 🚫"] },
-      { persona:'priya',  msgs:["The most dangerous thing about USB attacks is autorun — programs that start automatically when you plug the device in.","Two big questions for each device: do we know where it came from? And did it try to run any programs automatically?","Even personal USBs from home can accidentally bring malware into work. Company devices only!"] },
+      { persona:'priya',  msgs:["Watch out for malware that tries to run automatically when a USB is plugged in — or tricks you into clicking something that launches it.","Two big questions for each device: do we know where it came from? And did it try to run any programs automatically?","Even personal USBs from home can accidentally bring malware into work. Company devices only!"] },
     ],
     onLoad_2:[
       { persona:'zara',   msgs:["Read the email, then load the USB Device Log 🔌 Check each device!","Email first — then USB Device Log. Did anything try to autorun?"] },
@@ -371,3 +371,21 @@ var IP_TRACE_CHAT = {
   ],
 };
 
+
+
+// ── onAllHandled: completion celebrations for each module ──
+MODULE_GROUP_CHAT.bruteForce.onAllHandled = [
+  { persona:'marcus', msgs:["Every account checked! Locked the bots, cleared the normal ones. That's how it's done! 💪","All accounts assessed — you've got a real eye for bot attacks now!"] },
+  { persona:'zara',   msgs:["DONE! You spotted every attack AND left the normal activity alone! So hard to do! 🌟","Amazing work — you're officially a brute force expert! ⭐"] },
+  { persona:'priya',  msgs:["Well done. You understood the key difference: speed + few IPs = bot. Low rate + many IPs = human typing errors.","Excellent. You even spotted the edge case where a lock was followed by a successful login. Real analyst thinking."] },
+];
+MODULE_GROUP_CHAT.socialEng.onAllHandled = [
+  { persona:'zara',   msgs:["Every request reviewed — you caught the sneaky ones AND confirmed the real ones! 🎭⭐","Not a single social engineering trick got past you! 🏆"] },
+  { persona:'marcus', msgs:["DONE! You just stopped a whole social engineering attack! 💪","Every ticket checked. Every scam spotted. That's the skill!"] },
+  { persona:'priya',  msgs:["Well done. You applied the golden rule every time: did this follow proper process?","Social engineering is one of the hardest attacks to spot. You should be really proud."] },
+];
+MODULE_GROUP_CHAT.usbDrop.onAllHandled = [
+  { persona:'marcus', msgs:["All USB devices checked! Dodgy ones quarantined, safe ones cleared! 🔌🏆","Every single device assessed — that's exactly how a USB security check should go! 💪"] },
+  { persona:'zara',   msgs:["Not a single risky USB got past you! 🌟","You checked every device AND spotted the suspicious ones. Brilliant work! ⭐"] },
+  { persona:'priya',  msgs:["Perfect. Authorised ones cleared, suspicious ones flagged. Textbook response.","You applied the key rules consistently: origin + auto-run + timing. Great work."] },
+];
