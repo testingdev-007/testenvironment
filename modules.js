@@ -317,10 +317,10 @@ MODULES.ransomware = {
       { q: 'What does encryption mean?', options: ['Making files bigger 📂', 'Scrambling data so it can\'t be read without a key 🔑', 'Copying files to another drive 💿'], correct: 1 },
       { q: 'Why is backing up your files important?', options: ['It makes your computer faster ⚡', 'If ransomware hits, you still have copies 💾', 'It stops all viruses from getting in 🛡️'], correct: 1 },
       { q: 'Should you pay a ransom to get your files back?', options: ['Yes — they always keep their word 💰', 'No — paying doesn\'t guarantee you get your files back 🚫', 'Only pay half of it 🤔'], correct: 1 },
-      { q: 'How does ransomware usually arrive on a computer?', options: ['Through the power socket 🔌', 'Via phishing emails or infected downloads 📧', 'Over the telephone 📞'], correct: 1 },
+      { q: 'How does ransomware usually arrive on a computer?', options: ['By typing in a special code 🔢', 'Via phishing emails or infected downloads 📧', 'Only through USB sticks 🔌'], correct: 1 },
       { q: 'What does "isolating" a drive mean?', options: ['Putting it in the freezer ❄️', 'Disconnecting it so the ransomware can\'t spread further 🔌', 'Making it run faster ⚡'], correct: 1 },
       { q: 'Why does ransomware change file extensions like ".locked"?', options: ['To organise your files better 📁', 'To signal the files have been encrypted and are now unusable 🔒', 'To save disk space 💾'], correct: 1 },
-      { q: 'What makes a good ransomware defence?', options: ['Having a recent backup stored separately 💾', 'Paying quickly 💰', 'Restarting the computer 🔄'], correct: 0 },
+      { q: 'What is the best defence against ransomware?', options: ['Keep recent backups stored offline or offsite 💾', 'Have a very long password 🔑', 'Never use the internet 🌐'], correct: 0 },
     ]
   },
 };
@@ -925,7 +925,7 @@ MODULES.bruteForce = {
       if(rp[i]==='R'){const att=randInt(300,2000);const ips=randInt(1,2);const intv=randInt(20,150);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:`~${intv}ms`,ragAnswer:'R',actionAnswer:'lockAccount',notes:`${att.toLocaleString()}/min from ${ips===1?'1 computer':ips+' computers'}, every ~${intv}ms.`,handled:false,userRag:null,userAction:null};}
       else if(rp[i]==='A'){const att=randInt(60,299);const ips=randInt(2,6);const intv=randInt(150,450);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:`~${intv}ms`,ragAnswer:'A',actionAnswer:'investigate',notes:`${att}/min from ${ips} computers — attempts are fast and evenly spaced, like a robot.`,handled:false,userRag:null,userAction:null};}
       else if(i===edgeAt){const att=randInt(150,500);const intv=randInt(30,120);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:1,intervalMs:`~${intv}ms`,ragAnswer:'R',actionAnswer:'lockAccount',notes:'Account locked after loads of fast attempts — then a successful login! The attacker may have cracked the password. ⚠️',handled:false,userRag:null,userAction:null};}
-      else{const att=randInt(0,7);const ips=randInt(3,40);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:'Varied',ragAnswer:'G',actionAnswer:'ignore',notes:`${att}/min across ${ips} different devices.`,handled:false,userRag:null,userAction:null};}
+      else{const att=randInt(1,6);const ips=randInt(3,15);return {name:acc.name,purpose:acc.purpose,attemptsPerMin:att,sourceIPs:ips,intervalMs:'Varied',ragAnswer:'G',actionAnswer:'ignore',notes:`Only ${att}/min spread across ${ips} devices — that's less than 1 wrong attempt per device. Just normal humans mistyping. Real bot attacks use 300+/min from 1-2 computers.`,handled:false,userRag:null,userAction:null};}
     });
   },
   reportTeams: {
@@ -955,7 +955,7 @@ MODULES.bruteForce = {
       { q: 'A locked account then shows a successful login. What does that mean?', options: ['The real user got lucky 🍀', 'The attacker may have guessed the password — investigate immediately! 🔴', 'The lock didn\'t work properly 🔒'], correct: 1 },
       { q: 'What is a "dictionary attack"?', options: ['Hacking using a dictionary 📖', 'Trying thousands of common words and passwords automatically 🔑', 'A very slow brute force attack 🐢'], correct: 1 },
       { q: 'What does "account lockout" do?', options: ['Permanently deletes the account 🗑️', 'Blocks the account after too many wrong passwords 🔒', 'Sends an email to the hacker 📧'], correct: 1 },
-      { q: 'Why do attackers use many different computers for brute force?', options: ['To confuse the server 😵', 'To spread attempts so no single IP gets blocked 🌐', 'Because one computer is not fast enough 💻'], correct: 1 },
+      { q: 'Why do attackers spread a brute force attack across many computers?', options: ['To make it run faster ⚡', 'So no single computer gets blocked — spreading makes it harder to stop 🌐', 'To avoid paying for one powerful computer 💸'], correct: 1 },
       { q: 'Which is the hardest password to brute force?', options: ['password123 🙈', 'YourPetName2024 🐶', 'k#9mQx!2vL@p 🔐'], correct: 2 },
     ]
   },
@@ -1111,7 +1111,7 @@ MODULES.usbDrop = {
   briefing:{
     title:'USB Drop Attack',
     tagline:'The danger of unknown USB drives',
-    summary:'A USB drop attack is when a hacker leaves infected USB drives (memory sticks) somewhere people will find them — like in a car park, reception, or on a desk. When a curious person plugs it in, the malware automatically runs and infects the computer. Studies show that nearly half of people who find a USB stick will plug it in!',
+    summary:'A USB drop attack is when a hacker leaves infected USB drives (memory sticks) somewhere people will find them — like in a car park, reception, or on a desk. When a curious person plugs it in and opens a file on it, the malware can run and infect the computer. Studies show that nearly half of people who find a USB stick will plug it in — hackers count on that curiosity!',
     watchFor:'Unknown device names • Devices that auto-run programs • USB sticks left in unusual places • New devices connected outside of working hours',
     realWorld:'In 2010, the Stuxnet worm — one of the most sophisticated cyberweapons ever — spread via USB drops to sabotage nuclear facilities in Iran. Someone found a USB stick in a car park and plugged it in.',
   },
@@ -1178,7 +1178,7 @@ MODULES.usbDrop = {
     quiz:[
       {q:'You find a USB stick in the car park. What do you do?',options:['Plug it in to see what\'s on it 🔌','Hand it straight to IT Security without plugging it in 🛡️','Keep it — finders keepers! 🎁'],correct:1},
       {q:'What makes a USB drop attack so effective?',options:['USB sticks are very fast ⚡','People are naturally curious and want to see what\'s on the drive 🤔','USB sticks are free 🆓'],correct:1},
-      {q:'What does "autorun" mean on a USB stick?',options:['The USB charges your battery automatically 🔋','Programs run automatically the moment the USB is plugged in 💻','The USB runs faster than normal 🏃'],correct:1},
+      {q:'Why is an unknown USB stick dangerous even before you open any files?',options:['It uses up your battery faster 🔋','Malware on it can sometimes run automatically, or trick you into running it 💻','It can slow down your WiFi 📶'],correct:1},
       {q:'A USB stick with a label saying "WAGES - CONFIDENTIAL" is left on your desk. What should you do?',options:['Open it — it might be important! 📂','Report it to IT Security immediately without plugging it in 🚨','Leave it where it is and ignore it 🤷'],correct:1},
       {q:'Which USB stick is safe to plug in?',options:['A USB you found in the car park 🅿️','A USB given to you as a "free gift" at a conference 🎁','A company-issued, encrypted USB from your IT department 💼'],correct:2},
       {q:'Why might a hacker label a USB stick "STAFF SALARIES"?',options:['To be helpful and organised 📁','To make you curious so you plug it in 🤔','Because it actually contains salary information 💰'],correct:1},
