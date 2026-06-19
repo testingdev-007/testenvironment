@@ -1110,9 +1110,9 @@ MODULES.usbDrop = {
   briefing:{
     title:'USB Drop Attack',
     tagline:'The danger of unknown USB drives',
-    summary:'A USB drop attack is when a hacker leaves infected USB drives (memory sticks) somewhere people will find them — like in a car park, reception, or on a desk. When a curious person plugs it in and opens a file on it, the malware can run and infect the computer. Studies show that nearly half of people who find a USB stick will plug it in — hackers count on that curiosity!',
+    summary:'A USB drop attack is when a hacker leaves infected USB drives (memory sticks) somewhere people will find them — like in a car park, reception, or on a desk. They\'re often labelled with something tempting, like \"Staff Bonuses\" or \"Confidential.\" That label is the trick — it makes even careful people curious enough to plug it in and find out what\'s inside. The moment they do, the malware can run and infect the computer.',
     watchFor:'Unknown device names • Devices that auto-run programs • USB sticks left in unusual places • New devices connected outside of working hours',
-    realWorld:'In 2010, the Stuxnet worm — one of the most sophisticated cyberweapons ever — spread via USB drops to sabotage nuclear facilities in Iran. Someone found a USB stick in a car park and plugged it in.',
+    realWorld:'In 2010, the Stuxnet worm — one of the most sophisticated cyberweapons ever built — spread via a USB drop into nuclear facilities in Iran. It worked precisely because someone trusted a USB stick they shouldn\'t have — proof that this trick works even in high-security places.',
   },
   generateScenario(params={}){
     const {numEscalations=pick([1,2,2,2,3]),escalationType=pick(['RED_AMBER','RED_AMBER','RED_RED','AMBER_AMBER']),includeEdgeCase=Math.random()>.3,numItems=6}=params;
