@@ -326,20 +326,18 @@ var MODULE_GROUP_CHAT = {
 
 // ── PHISHING EXCEPTION CHAT ────────────────────────────────────
 var PHISHING_EXCEPTION_CHAT = {
-  onPhishingArrived:[
-    { persona:'priya',  msgs:["Hold on — check that sender address before you do ANYTHING 👀","New email in. Look at the sender address very carefully before you click open.","Wait — does that sender address look exactly right? Check every character!"] },
-    { persona:'zara',   msgs:["Ooh careful! Look at who sent that before you open it 🔍","Stop — look at that email address. Something might be off!","Check the FROM address first. Every. Single. Letter."] },
-    { persona:'marcus', msgs:["Don't click yet! Look at that address carefully — is it legit? 🔍","Hold up — read the sender address. Does it look exactly right?","Check that address. Real? Or fake? You've got this!"] },
-  ],
+  // NOTE: no "onPhishingArrived" pool anymore — any proactive nudge before
+  // the student decides would give the answer away. They now decide blind,
+  // exactly like a real inbox. Reactions only happen AFTER they choose.
   onOpened:[
-    { persona:'zara',   msgs:["Oh no — that was a fake! Always check the address before opening 💪 You'll spot it next time!","That was a phishing email! The address had a tiny mistake in it. Now you know what to look for!"] },
-    { persona:'marcus', msgs:["Sneaky one! That was a fake. Check those addresses next time — you've got the eye for it!","Phishing got you that time — but you'll catch it next time. Look for that one wrong character!"] },
-    { persona:'priya',  msgs:["That one fooled you — the address had one wrong character. You'll spot it next time.","Phishing emails are designed to fool you. The mistake was very small. Check character by character next time."] },
+    { persona:'zara',   msgs:["Oh no — that was a fake! Always check the address before opening 💪 You'll spot it next time!","That was a phishing email! The address had a tiny mistake in it. Now you know what to look for!","Ah, that one got you! The address wasn't quite right. You'll catch the next one!"] },
+    { persona:'marcus', msgs:["Sneaky one! That was a fake. Check those addresses next time — you've got the eye for it!","Phishing got you that time — but you'll catch it next time. Look for that one wrong character!","That one was tricky! Even pros get caught sometimes. Check the address closely next time."] },
+    { persona:'priya',  msgs:["That one fooled you — the address had one wrong character. You'll spot it next time.","Phishing emails are designed to fool you. The mistake was very small. Check character by character next time.","Good lesson here — that address was almost right, which is exactly what makes phishing so tricky."] },
   ],
   onReported:[
-    { persona:'marcus', msgs:["YES! Spotted the fake! You've got a sharp eye! ⭐","Beautiful catch! That's exactly the skill we need! 🎯","You got it! Fake address, reported immediately. That's how it's done! 💪"] },
-    { persona:'zara',   msgs:["BRILLIANT! Fake address caught and reported! You're on fire! 🏆","Incredible! You didn't get fooled at all! Amazing! 🌟","YES! That's exactly right! Didn't even open it! 🔥"] },
-    { persona:'priya',  msgs:["Correct. Fake address identified and reported. ✓","Well done. You checked before acting. That's the right approach every time.","Perfect. You spotted the suspicious element and reported it."] },
+    { persona:'marcus', msgs:["YES! Spotted the fake! You've got a sharp eye! ⭐","Beautiful catch! That's exactly the skill we need! 🎯","You got it! Fake address, reported immediately. That's how it's done! 💪","Great job! Didn't even open it — straight to report!","Well done! That's a real analyst move right there 🕵️"] },
+    { persona:'zara',   msgs:["BRILLIANT! Fake address caught and reported! You're on fire! 🏆","Incredible! You didn't get fooled at all! Amazing! 🌟","YES! That's exactly right! Didn't even open it! 🔥","Wow, you caught it straight away! So good! ⭐","Nailed it! That's exactly how to handle a dodgy email! 🙌"] },
+    { persona:'priya',  msgs:["Correct. Fake address identified and reported. ✓","Well done. You checked before acting. That's the right approach every time.","Perfect. You spotted the suspicious element and reported it.","Excellent. That's textbook phishing detection.","Right call. Checking the address before opening is exactly the habit to build."] },
   ],
 };
 
