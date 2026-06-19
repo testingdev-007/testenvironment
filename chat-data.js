@@ -297,7 +297,7 @@ var MODULE_GROUP_CHAT = {
   // ════════════════════════════════════════════════════════════
   usbDrop: {
     onLoad_1:[
-      { persona:'marcus', msgs:["Unknown USB sticks plugged into our computers! This could be a USB drop attack 🔌","Someone might have left infected USB drives around the building on purpose!","A USB drop attack is when hackers leave infected memory sticks for curious people to find and plug in.","Real talk — studies show loads of people will plug in a USB they find. Hackers know this!"] },
+      { persona:'marcus', msgs:["Unknown USB sticks plugged into our computers! This could be a USB drop attack 🔌","Someone might have left infected USB drives around the building on purpose!","A USB drop attack is when hackers leave infected memory sticks for curious people to find and plug in.","Real talk — hackers label these USBs with tempting stuff like \"Bonuses\" or \"Confidential\" so even careful people get curious enough to plug them in!"] },
       { persona:'zara',   msgs:["Ugh — unknown USB sticks showing up 😤 Classic USB drop attack!","Hackers leave USBs in car parks and corridors hoping someone picks them up. Super sneaky!","Found a USB? DON'T plug it in! That's the number one rule 🚫"] },
       { persona:'priya',  msgs:["Watch out for malware that tries to run automatically when a USB is plugged in — or tricks you into clicking something that launches it.","Two big questions for each device: do we know where it came from? And did it try to run any programs automatically?","Even personal USBs from home can accidentally bring malware into work. Company devices only!"] },
     ],
