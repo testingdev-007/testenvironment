@@ -640,8 +640,7 @@ var MODULE_COLUMNS = {
   ddos: [
     { key: 'name', label: 'SERVICE' },
     { key: 'avgHitsMin', label: 'AVG /MIN' },
-    { key: 'currentHitsMin', label: 'CURRENT /MIN' },
-    { key: 'notes', label: 'NOTE' }
+    { key: 'currentHitsMin', label: 'CURRENT /MIN' }
   ],
   malware: [
     { key: 'name', label: 'PROCESS' },
