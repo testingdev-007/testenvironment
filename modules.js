@@ -1080,7 +1080,6 @@ MODULES.socialEng = {
   },
 };
 
-MODULE_LIST.push('socialEng');
 MODULE_COLUMNS.socialEng = [
   {key:'name',    label:'CALLER / SENDER'},
   {key:'purpose', label:'DEPARTMENT'},
@@ -1189,7 +1188,6 @@ MODULES.usbDrop = {
   },
 };
 
-MODULE_LIST.push('usbDrop');
 MODULE_COLUMNS.usbDrop = [
   {key:'name',     label:'DEVICE ID'},
   {key:'purpose',  label:'DEVICE TYPE'},
