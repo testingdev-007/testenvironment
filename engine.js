@@ -51,7 +51,7 @@ var GS = {
   phishReported:false, ipWon:false, livesLost:0,
   selectedEmailId:null,
   emailOpened:false, // set true when email content shown
-  briefingsSeen:new Set(), stuckCount:0,
+  briefingsSeen:new Set(), howToPlaySeen:false, stuckCount:0,
   // Per-session escalation control
   sessionFlags:{allGreenUsed:false, highEscalationUsed:false, lastWasLow:false},
 };
@@ -427,7 +427,7 @@ function loadModule(id){
   const toolSel=document.getElementById('toolSel');
   toolSel.innerHTML='<option value="">— Pick an investigation tool —</option>';
   getToolOptions(id).forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;toolSel.appendChild(o);});
-  const email={id:Date.now(),sender:mod.emailSender(),subject:mod.emailSubject(),body:mod.emailBody(GS.scenario),modId:id,phish:false};
+  const email={id:Date.now(),sender:mod.emailSender(),subject:mod.emailSubject(),body:mod.emailBody(GS.scenario)+'\n\n👉 YOUR JOB: Open the tool below. For each item, decide: dangerous (🔴), worth checking first (🟡), or totally normal (🟢)? Then click the matching button.',modId:id,phish:false};
   GS.pendingEmail=email;
   addToInbox(email);
   setTimeout(()=>gcModLoad(id),800);
@@ -463,8 +463,6 @@ function addToInbox(email){
   list.insertBefore(el,list.firstChild);
   // Select and highlight in inbox (buttons enabled), but do NOT auto-open email pane
   setTimeout(()=>selectInboxEmail(email.id, email),350);
-  // Team chat hint for phishing emails
-  if(email.phish){setTimeout(()=>{const e2=pick(PHISHING_EXCEPTION_CHAT.onPhishingArrived);gcMsg(e2.persona,pick(e2.msgs));},1800);}
 }
 
 function selectInboxEmail(id, email){
@@ -566,7 +564,13 @@ function loadTool(){
     setStep(3);
     // STEP 2: Award XP + tell the team via chat (no modal).
     addXP(10);
-    gcMsg('marcus','✓ Right tool! +10 XP. Now check each item below 👇',200);
+    var _toolMsgs=['✓ Right tool! +10 XP. Now check each item below 👇','✓ Tool loaded! +10 XP. Time to investigate each one 🔍','✓ Perfect choice! +10 XP. Let\'s work through these 👇','✓ That\'s the one! +10 XP. Check each item carefully 🕵️'];
+    gcMsg('marcus',pick(_toolMsgs),200);
+    // First time EVER seeing investigation cards — explain the mechanic once
+    if(!GS.howToPlaySeen){
+      GS.howToPlaySeen=true;
+      gcMsg('priya','For each card: decide if it\'s dangerous (🔴), worth checking first (🟡), or totally normal (🟢) — then click the button that matches!',900);
+    }
     gcMod(GS.modId,'onToolCorrect');
     try{SFX.correct();}catch(e){}
     // STEP 3: Post the case briefing to chat.
@@ -631,7 +635,8 @@ function renderToolData(){
       html+=`<div class="dval"><span class="dval-lbl">${c.label}</span><span class="dval-v" style="${valStyle}">${esc(String(v))}</span></div>`;
     });
     html+=`</div>`;
-    if(item.notes){html+=`<div class="dcard-note">${esc(item.notes)}</div>`;}
+    // Notes contain the reasoning/answer — only reveal AFTER the student has decided
+    if(done&&item.notes){html+=`<div class="dcard-note">${esc(item.notes)}</div>`;}
     if(!done&&GS.scenarioRagDone){
       html+=`<div class="dcard-actions">`;
       (MODULE_ACTIONS[id]||[]).forEach(a=>{
@@ -679,8 +684,8 @@ function doAction(rowIdx,actId){
   item.userAction=actId;
   const ao=(actId===item.actionAnswer);
   // Varied XP messages so it doesn't feel robotic
-  var rightMsgs=['✓ Spot on! +15 XP 🎯','✓ Nailed it! +15 XP ⭐','✓ Great call! +15 XP 💪','✓ Exactly right! +15 XP 🔥','✓ Brilliant! +15 XP 🌟'];
-  var wrongMsgs=['Not quite — but keep going! (-5 XP)','Hmm, not this time. (-5 XP)','Close! Have another think next time. (-5 XP)','That one slipped through. (-5 XP)','Tricky one — you\'ll get the next! (-5 XP)'];
+  var rightMsgs=['✓ Spot on! +15 XP 🎯','✓ Nailed it! +15 XP ⭐','✓ Great call! +15 XP 💪','✓ Exactly right! +15 XP 🔥','✓ Brilliant! +15 XP 🌟','✓ Great job! +15 XP 🙌','✓ Well done! +15 XP 👏','✓ Wow, you caught it! +15 XP 🕵️','✓ Correct! +15 XP ✅','✓ Yes! Perfect read! +15 XP 🧠','✓ Sharp eyes! +15 XP 👀','✓ That\'s the one! +15 XP 💯'];
+  var wrongMsgs=['Not quite — but keep going! (-5 XP)','Hmm, not this time. (-5 XP)','Close! Have another think next time. (-5 XP)','That one slipped through. (-5 XP)','Tricky one — you\'ll get the next! (-5 XP)','Not this time — but you\'re learning! (-5 XP)','Oops, not quite right. (-5 XP)','That one was a bit sneaky! (-5 XP)','Almost! Look again next time. (-5 XP)','Good try — keep that instinct sharp! (-5 XP)'];
   var rightWho=pick(['marcus','zara','priya']);
   var wrongWho=pick(['zara','priya','marcus']);
   if(ao){
@@ -819,9 +824,9 @@ function loadPhish(){
   // Vary the from-address format
   const fromPrefixes = ['noreply','security','alert','support','accounts','no-reply','info','service'];
   const sender = `${pick(fromPrefixes)}@${tmpl.domain}`;
-  const email = {id:Date.now(), sender, subject, body, modId:null, phish:true};
+  const email = {id:Date.now(), sender, subject, body:body+'\n\n👉 YOUR JOB: Decide if this email is safe to open, or if you should report it without opening it.', modId:null, phish:true};
   GS.active=true; GS.pendingEmail=email;
-  setSim('⚠ SUSPICIOUS EMAIL');
+  setSim('NEW MESSAGE');
   addToInbox(email);
   toast('New email — be careful before you act!','warn');
 }
@@ -1470,6 +1475,7 @@ function resetAll(){
   document.getElementById('plenaryModal').classList.remove('open');
   document.body.classList.remove('alert-mode');
   GS.briefingsSeen=new Set();
+  GS.howToPlaySeen=false;
   Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,selectedEmailId:null,emailOpened:false,briefingsSeen:new Set(),stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No emails yet!<br><span style="color:var(--g);font-size:14px;">👆 Click the green button<br>above to start!</span></div>`;
