@@ -18,6 +18,7 @@
 
 // ── SESSION HISTORY — persists across resets, clears on page reload ──
 var SESSION_HISTORY = {
+  recentMods: [],  // ordered oldest→newest; drives anti-repetition
   modulesUsed: new Set(),      // module IDs shown this page load
   quizShown:   {},             // { moduleId: Set of question indices shown }
   scenarioKeys: new Set(),     // 'modId_numEsc_type' — avoid identical patterns
@@ -322,15 +323,36 @@ function dispatchMod(id){
   else loadModule(id);
 }
 function buildQueue(){
-  // Prefer modules not yet seen this page session — reduces repetition on reset
-  const unseen=MODULE_LIST.filter(m=>!SESSION_HISTORY.modulesUsed.has(m));
-  const pool=unseen.length>=GS.totalRounds?unseen:MODULE_LIST;
-  const mods=shuffle(pool).slice(0,GS.totalRounds);
-  mods.forEach(m=>SESSION_HISTORY.modulesUsed.add(m));
-  // BOTH exceptions are guaranteed every session — always inserted at random positions
+  // Anti-repetition queue builder
+  // recentMods = ordered array, oldest first, newest last.
+  // Modules not in the array are "unseen" and get highest priority.
+  // Within a session of 4 we NEVER repeat a module.
+  // Across sessions, recently-used modules sort to the back.
+  var recent=SESSION_HISTORY.recentMods;
+
+  // Split into unseen (not in recent) and seen (in recent, oldest first)
+  var unseen=MODULE_LIST.filter(function(m){return recent.indexOf(m)===-1;});
+  var seen=MODULE_LIST.filter(function(m){return recent.indexOf(m)!==-1;});
+  // seen is already implicitly sorted by position in recent (oldest=lowest index)
+  // shuffle within each group for variety, then concatenate
+  var pool=shuffle(unseen).concat(shuffle(seen));
+
+  // Take first totalRounds — guaranteed no repeats within this queue
+  var mods=pool.slice(0,GS.totalRounds);
+
+  // Update recency: move each chosen module to the end (most recent)
+  mods.forEach(function(m){
+    var i=recent.indexOf(m);
+    if(i!==-1)recent.splice(i,1);
+    recent.push(m);
+  });
+  // Cap to MODULE_LIST length so the array never grows stale
+  while(recent.length>MODULE_LIST.length)recent.shift();
+
+  // Insert BOTH exceptions at non-adjacent random positions
   mods.splice(randInt(0,mods.length),0,'__phish__');
-  let p=randInt(0,mods.length);
-  while(mods[p]==='__phish__')p=randInt(0,mods.length); // don't stack next to each other
+  var p=randInt(0,mods.length);
+  while(mods[p]==='__phish__')p=randInt(0,mods.length);
   mods.splice(p,0,'__iptrace__');
   GS.queue=mods;
 }
