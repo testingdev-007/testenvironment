@@ -89,7 +89,10 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .eitem:hover{border-color:var(--g);background:rgba(0,255,65,.07);}
 .eitem.unread{border-left:3px solid var(--g);}
 .eitem.sel{border-color:var(--g);background:rgba(0,255,65,.09);}
-.eitem.phish{border-left:3px solid var(--red)!important;}
+/* .eitem.phish intentionally has NO distinguishing style — the phishing
+   exception email must look identical to a normal email in the inbox list,
+   otherwise the red border itself gives the answer away before the student
+   even clicks on it. */
 .eitem.done{opacity:.45;cursor:default;}
 .eitem.done:hover{border-color:rgba(0,255,65,.14);background:rgba(0,255,65,.02);}
 .ef{font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -1043,7 +1046,7 @@ window.addEventListener('load',function(){
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v32.js -->
+<!-- All file versions managed in loader_2026-06-10_v34.js -->
 <script src="loader.js"></script>
 
 
