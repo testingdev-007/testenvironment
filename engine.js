@@ -500,7 +500,18 @@ function actOnSelectedEmail(action){
       const email={id,sender:el.dataset.sender,subject:el.dataset.subject,body:el.dataset.body};
       showEmailContent(email);setStep(2);
     } else {
-      toast('This looks like a genuine email — no need to report it!','warn');
+      // Reported a genuine email by mistake — real consequence + chat feedback,
+      // consistent with every other wrong decision in the game.
+      loseH('Reported a genuine email');
+      addXP(-5);
+      var _fpWho=pick(['priya','zara','marcus']);
+      var _fpMsgs=[
+        "That one's actually genuine — no need to report it! It's safe to open. (-5 XP)",
+        "Hold on — that email looks legitimate. You can open this one safely. (-5 XP)",
+        "False alarm! That one's a real email, not a trick. Try opening it instead. (-5 XP)",
+        "That one was actually fine! Reporting genuine emails wastes the security team's time too. (-5 XP)"
+      ];
+      gcMsg(_fpWho,pick(_fpMsgs));
     }
   }
 }
@@ -1377,7 +1388,17 @@ function showPlenary(savedId,savedScenario){
     const pool=unseen.length>=2?unseen:allIdx; // reset if all questions seen
     const picked=shuffle(pool).slice(0,2);
     picked.forEach(i=>seen.add(i));
-    return picked.map(i=>pl.quiz[i]);
+    // Shuffle each question's option ORDER too — otherwise the correct
+    // answer sits in the same position every time (a guessable pattern).
+    // We build a fresh object so the original quiz data is never mutated.
+    return picked.map(i=>{
+      const orig=pl.quiz[i];
+      const order=orig.options.map((_,idx)=>idx);
+      const shuffledOrder=shuffle(order);
+      const newOptions=shuffledOrder.map(idx=>orig.options[idx]);
+      const newCorrect=shuffledOrder.indexOf(orig.correct);
+      return {q:orig.q, options:newOptions, correct:newCorrect};
+    });
   })();
   if(quizPool.length){
     GS.plenQuizTotal=quizPool.length;
