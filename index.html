@@ -1,7 +1,15 @@
 <!-- ════════════════════════════════════════════════════════════
      CYBERSHIELD ACADEMY
-     FILE: index_2026-06-10_v28-DIAGNOSTIC.html
-     ROLE: main page (diagnostic build)
+     FILE:    index_2026-06-10_v37-DIAGNOSTIC.html
+     ROLE:    Main page (diagnostic build — error bar enabled)
+     ────────────────────────────────────────────────────────────
+     VERSION HISTORY
+     v37   2026-06-22  #ipRetryPanel added inside #ipOverlay (Safari IP trace hang fix)
+     v36   2026-06-22  .eitem.phish red border removed (phishing exception visual spoiler)
+     v35   2026-06-22  Loader ref updated to v37
+     v34   2026-06-22  Loader ref updated to v36
+     v33   2026-06-22  Loader ref updated to v35
+     v26   2026-06-10  Diagnostic build: window.onerror + unhandledrejection error bar added
      ════════════════════════════════════════════════════════════ -->
 <!DOCTYPE html>
 <html lang="en">
@@ -1016,6 +1024,15 @@ window.addEventListener('load',function(){
       <div class="ipresult" id="ipResultInner"></div>
       <button class="btn btn-g btn-orb" style="width:100%;padding:12px;margin-top:14px;font-size:13px;" onclick="closeIPTrace()">CONTINUE MISSION</button>
     </div>
+    <!-- Retry panel — lives INSIDE the overlay so no z-index or touch issues on iOS -->
+    <div id="ipRetryPanel" style="display:none;text-align:center;">
+      <div style="font-family:'Orbitron',monospace;font-size:13px;color:var(--red);margin-bottom:10px;">&#9888; TRACE INTERRUPTED</div>
+      <div id="ipRetryReason" style="font-size:13px;color:#fff;margin-bottom:16px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-g btn-orb" style="flex:1;padding:12px;" onclick="handleIPRetry()">&#128260; TRY AGAIN (45s)</button>
+        <button class="btn btn-sm btn-d" style="flex:1;padding:12px;" onclick="handleIPGiveUp()">GIVE UP</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1046,7 +1063,7 @@ window.addEventListener('load',function(){
 </div>
 
 
-<!-- All file versions managed in loader_2026-06-10_v37.js -->
+<!-- All file versions managed in loader_2026-06-10_v38.js -->
 <script src="loader.js"></script>
 
 
