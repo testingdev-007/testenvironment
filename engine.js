@@ -1226,23 +1226,48 @@ function endTrace(won,reason){
 
 // ── RETRY MODAL — one second chance per trace ──────────────────
 function showIPRetryModal(reason){
-  // Use the unified game modal — no dependency on a separate retry modal element
-  var html='<div class="gm-flash" style="color:var(--red)">&#9888; TRACE INTERRUPTED</div>'
-          +'<div class="gm-title" style="margin-bottom:18px">'+esc(reason)+'</div>'
-          +'<div style="display:flex;gap:10px;">'
-          +'<button class="btn btn-g btn-orb gm-ok" id="gameModalOk" style="flex:1">&#128260; TRY AGAIN (45s)</button>'
-          +'<button class="btn btn-sm btn-d" id="ipGiveUp" style="flex:1">GIVE UP</button>'
-          +'</div>';
-  showGameModal(html, function(){ retryIPTrace(); });
-  // Wire give-up separately
-  setTimeout(function(){
-    var g=document.getElementById('ipGiveUp');
-    if(g)g.onclick=function(){
-      var el=gameModalEl(); if(el)el.style.display='none';
-      var body=document.getElementById('gameModalBody'); if(body)body.innerHTML='';
-      declineRetryIPTrace();
-    };
-  },0);
+  // Build DOM nodes directly — never use innerHTML+getElementById on Safari/iOS
+  // because innerHTML parsing may not be synchronously reflected in getElementById,
+  // leaving onclick unwired and the modal completely unresponsive.
+  var el=gameModalEl();
+  var body=document.getElementById('gameModalBody');
+  if(!el||!body){ retryIPTrace(); return; } // fallback: skip straight to retry
+
+  // Clear existing content
+  while(body.firstChild) body.removeChild(body.firstChild);
+
+  var flash=document.createElement('div');
+  flash.className='gm-flash'; flash.style.color='var(--red)';
+  flash.textContent='⚠ TRACE INTERRUPTED';
+
+  var title=document.createElement('div');
+  title.className='gm-title'; title.style.marginBottom='18px';
+  title.textContent=reason;
+
+  var row=document.createElement('div');
+  row.style.cssText='display:flex;gap:10px;';
+
+  var tryBtn=document.createElement('button');
+  tryBtn.className='btn btn-g btn-orb gm-ok';
+  tryBtn.style.flex='1'; tryBtn.textContent='🔄 TRY AGAIN (45s)';
+  tryBtn.onclick=function(){
+    el.style.display='none';
+    while(body.firstChild) body.removeChild(body.firstChild);
+    retryIPTrace();
+  };
+
+  var giveBtn=document.createElement('button');
+  giveBtn.className='btn btn-sm btn-d';
+  giveBtn.style.flex='1'; giveBtn.textContent='GIVE UP';
+  giveBtn.onclick=function(){
+    el.style.display='none';
+    while(body.firstChild) body.removeChild(body.firstChild);
+    declineRetryIPTrace();
+  };
+
+  row.appendChild(tryBtn); row.appendChild(giveBtn);
+  body.appendChild(flash); body.appendChild(title); body.appendChild(row);
+  el.style.display='flex';
 }
 
 function retryIPTrace(){
