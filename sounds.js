@@ -8,7 +8,7 @@
 // Professional workplace sounds + mission-control ambience
 // ============================================================
 
-const SFX = (() => {
+var SFX = (() => {
   let ctx = null;
   let _bgMaster = null;
   let _bgNodes  = [];
@@ -183,11 +183,11 @@ const SFX = (() => {
 
 // Global click/key hooks
 document.addEventListener('keydown', e => {
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'){
+  try{if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'){
     if(e.key.length===1||e.key==='Backspace') SFX.keyClick();
-  }
+  }}catch(ex){}
 });
 document.addEventListener('click', e => {
-  const btn=e.target.closest('button,.ipeasy,.edb-btn,.brep');
-  if(btn) SFX.btnClick();
+  try{var btn=e.target.closest('button,.ipeasy,.edb-btn,.brep');
+  if(btn) SFX.btnClick();}catch(ex){}
 });
