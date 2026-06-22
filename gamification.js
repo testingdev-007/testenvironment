@@ -8,14 +8,14 @@
 // Persists across resets (memory only) — clears on page reload
 // ============================================================
 
-const GAMIFICATION = {
+var GAMIFICATION = {
   sessions:  [],
   trophySet: new Set(),
   totalRuns: 0,
 };
 
 // ── GRADES ───────────────────────────────────────────────────
-const GRADES = [
+var GRADES = [
   { min:500, name:'CYBER LEGEND',    emoji:'⭐', color:'#ffd700', stars:5 },
   { min:420, name:'CYBER HERO',      emoji:'🦸', color:'#ffaa00', stars:4 },
   { min:310, name:'CYBER AGENT',     emoji:'🕵️',  color:'#00f5ff', stars:3 },
@@ -27,7 +27,7 @@ const GRADES = [
 function getGrade(xp){ return GRADES.find(g => xp >= g.min) || GRADES[GRADES.length-1]; }
 
 // ── TROPHIES ─────────────────────────────────────────────────
-const TROPHIES = {
+var TROPHIES = {
   first_mission: { name:'First Mission',    icon:'🏆', desc:'Complete your first sim' },
   iron_detective:{ name:'Iron Detective',   icon:'❤️',  desc:'Finish without losing a life' },
   top_agent:     { name:'Top Agent',        icon:'💎', desc:'Score 400+ XP in one run' },
