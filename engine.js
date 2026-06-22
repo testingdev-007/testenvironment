@@ -1,7 +1,17 @@
 /* ════════════════════════════════════════════════════════════
    CYBERSHIELD ACADEMY
-   FILE: engine_2026-06-10_v29.js
-   ROLE: engine.js
+   FILE:    engine_2026-06-10_v36.js
+   ROLE:    Game engine — rendering, state, timers, IP trace, plenary, modals
+   ────────────────────────────────────────────────────────────
+   VERSION HISTORY
+   v36     2026-06-22  showIPRetryModal replaced with in-overlay #ipRetryPanel toggle — eliminates z-index/touch issues on iOS Safari entirely
+   v35     2026-06-22  showIPRetryModal rebuilt with createElement (Safari hang fix); both RAF loops cancelled on wrong IP answer
+   v34     2026-06-22  handleHopAnswer: cancel TRACER.animId on wrong answer; retryIPTrace restarts drawTacticalMapIdle
+   v33     2026-06-22  Quiz options shuffled at render time (anti-positional-bias); false-report on genuine email costs hearts/XP + chat feedback
+   v32     2026-06-22  Notes gated behind done flag (pre-answer spoiler fix); howToPlaySeen one-time explainer; task clarity line in all module emails; rightMsgs/wrongMsgs pools expanded to 12/10
+   v31     2026-06-22  Removed onPhishingArrived spoiler chat; neutralised status bar to NEW MESSAGE; expanded phishing exception chat pools; onAllHandled for bruteForce/socialEng/usbDrop
+   v30     2026-06-22  buildQueue rewritten with recency array (no within-session repeats); howToPlaySeen init and reset
+   v29     2026-06-10  var conversion throughout (Safari duplicate-var fix); unified game modal replacing separate overlays
    ════════════════════════════════════════════════════════════ */
 // ============================================================
 // ENGINE.JS  —  CyberShield Academy  v6
@@ -1226,48 +1236,26 @@ function endTrace(won,reason){
 
 // ── RETRY MODAL — one second chance per trace ──────────────────
 function showIPRetryModal(reason){
-  // Build DOM nodes directly — never use innerHTML+getElementById on Safari/iOS
-  // because innerHTML parsing may not be synchronously reflected in getElementById,
-  // leaving onclick unwired and the modal completely unresponsive.
-  var el=gameModalEl();
-  var body=document.getElementById('gameModalBody');
-  if(!el||!body){ retryIPTrace(); return; } // fallback: skip straight to retry
+  // Show the retry panel that lives INSIDE #ipOverlay — no separate modal,
+  // no z-index battles, no createElement timing. Just toggle display on a
+  // pre-existing DOM element. Safe on iOS Safari.
+  var panel=document.getElementById('ipRetryPanel');
+  var reasonEl=document.getElementById('ipRetryReason');
+  if(!panel){ retryIPTrace(); return; } // fallback
+  if(reasonEl) reasonEl.textContent=reason;
+  panel.style.display='block';
+}
 
-  // Clear existing content
-  while(body.firstChild) body.removeChild(body.firstChild);
+function handleIPRetry(){
+  var panel=document.getElementById('ipRetryPanel');
+  if(panel) panel.style.display='none';
+  retryIPTrace();
+}
 
-  var flash=document.createElement('div');
-  flash.className='gm-flash'; flash.style.color='var(--red)';
-  flash.textContent='⚠ TRACE INTERRUPTED';
-
-  var title=document.createElement('div');
-  title.className='gm-title'; title.style.marginBottom='18px';
-  title.textContent=reason;
-
-  var row=document.createElement('div');
-  row.style.cssText='display:flex;gap:10px;';
-
-  var tryBtn=document.createElement('button');
-  tryBtn.className='btn btn-g btn-orb gm-ok';
-  tryBtn.style.flex='1'; tryBtn.textContent='🔄 TRY AGAIN (45s)';
-  tryBtn.onclick=function(){
-    el.style.display='none';
-    while(body.firstChild) body.removeChild(body.firstChild);
-    retryIPTrace();
-  };
-
-  var giveBtn=document.createElement('button');
-  giveBtn.className='btn btn-sm btn-d';
-  giveBtn.style.flex='1'; giveBtn.textContent='GIVE UP';
-  giveBtn.onclick=function(){
-    el.style.display='none';
-    while(body.firstChild) body.removeChild(body.firstChild);
-    declineRetryIPTrace();
-  };
-
-  row.appendChild(tryBtn); row.appendChild(giveBtn);
-  body.appendChild(flash); body.appendChild(title); body.appendChild(row);
-  el.style.display='flex';
+function handleIPGiveUp(){
+  var panel=document.getElementById('ipRetryPanel');
+  if(panel) panel.style.display='none';
+  declineRetryIPTrace();
 }
 
 function retryIPTrace(){
