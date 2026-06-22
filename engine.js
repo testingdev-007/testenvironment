@@ -914,6 +914,10 @@ function handleHopAnswer(correct,hop,isFinal){
 
   if(!correct){
     clearInterval(s.ti);
+    // Cancel BOTH animation loops — idle map AND pulse — so they don't
+    // saturate the main thread while the retry modal is on screen
+    stopMapPulse();
+    if(TRACER.animId){cancelAnimationFrame(TRACER.animId);TRACER.animId=null;}
     try{SFX.bgStop();}catch(ex){}
     // First failure: offer a retry; second failure: actually fail
     if(!s.usedRetry){
@@ -1254,6 +1258,8 @@ function retryIPTrace(){
   document.getElementById('ipTrace').style.display='';
   document.getElementById('ipResult').style.display='none';
   try{SFX.bgStart();}catch(ex){}
+  // Restart the idle map animation (was cancelled when wrong answer was given)
+  drawTacticalMapIdle();
   startIPCountdown();
   gcMsg('zara','Second chance! 45 seconds — stay focused! ⚡',200);
   gcMsg('marcus','You\'ve got this! Read those IPs carefully! 💪',800);
