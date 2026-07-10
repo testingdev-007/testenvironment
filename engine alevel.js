@@ -231,6 +231,7 @@ function showAttackBriefing(mod){
 }
 
 function _boot(){
+  if(window._bootDone)return; window._bootDone=true;
   if(!GS.briefingsSeen)GS.briefingsSeen=new Set();
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
@@ -241,11 +242,7 @@ function _boot(){
   idleLoop();
 }
 // Handles both normal <script> loading and dynamic loading via loader.js
-if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',_boot);
-} else {
-  setTimeout(_boot,0);
-}
+// Boot is handled by loader_alevel.js → calls _boot() after all files load
 
 // ── MATRIX ────────────────────────────────────────────────────
 function initMatrix(){
