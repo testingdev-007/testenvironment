@@ -497,24 +497,27 @@ function _pbChatQ(){
 window._pbChatAns=function(chosen){
   // Guard: bail if _pb has been cleared or this question already answered
   if(!_pb||!_pb.pool||!_pb.shuffled||_pb.answered)return;
-  _pb.answered=true;  // prevent double-fire on same question
+  _pb.answered=true;  // prevent double-fire
 
   var correct=(chosen===_pb.correctIdx);
   if(correct)_pb.score++;
+  // Read and immediately clear shuffled so any re-click hits the guard
   var hint=(_pb.shuffled[_pb.correctIdx]||{}).hint||'';
   var rightText=(_pb.shuffled[_pb.correctIdx]||{}).text||'';
+  var correctIdx=_pb.correctIdx;
+  _pb.shuffled=null;  // nulled immediately — re-clicks now blocked by guard
 
-  // Style buttons in-place
+  // Style buttons
   var msgEl=document.getElementById('pb-q-'+_pb.idx);
   if(msgEl){
     msgEl.querySelectorAll('.pb-opt').forEach(function(b,i){
       b.disabled=true;
-      b.className='pb-opt '+(i===_pb.correctIdx?'pbo-ok':(i===chosen?'pbo-err':'pbo-dim'));
+      b.removeAttribute('onclick');
+      b.className='pb-opt '+(i===correctIdx?'pbo-ok':(i===chosen?'pbo-err':'pbo-dim'));
     });
   }
   _pb.idx++;
 
-  // Capture values NOW before any async gap
   var responder=pick(['zara','marcus','priya']);
   var fb=correct
     ? pick(['Correct. ','Right. ','Yes. '])+(hint||'')
@@ -525,8 +528,10 @@ window._pbChatAns=function(chosen){
   setTimeout(function(){
     gcMsg(responder,fb,0);
     if(nextIdx<poolLen){
-      _pb.answered=false;  // allow next question's answer
-      setTimeout(_pbChatQ,900);
+      setTimeout(function(){
+        _pb.answered=false;  // reset only just before new question renders
+        _pbChatQ();
+      },900);
     } else {
       setTimeout(_pbChatFinal,900);
     }
@@ -834,9 +839,26 @@ function renderToolData(){
       let valStyle='';
       if(c.key==='cvssScore'){valStyle=`color:${v>=9?'var(--red)':v>=7?'var(--amb)':v>=4?'#eeee00':'var(--g)'};font-weight:bold`;}
       else if(c.key==='severity'){valStyle=`color:${v==='CRITICAL'?'var(--red)':v==='HIGH'?'var(--amb)':v==='MEDIUM'?'#eeee00':'var(--g)'}`;}
-      html+=`<div class="dval"><span class="dval-lbl">${c.label}</span><span class="dval-v" style="${valStyle}">${esc(String(v))}</span></div>`;
+      if(c.key==='purpose'){
+        html+=`<div class="dval dval-wide"><span class="dval-lbl">${c.label}</span><span class="dval-v dval-desc">${esc(String(v))}</span></div>`;
+      } else {
+        html+=`<div class="dval"><span class="dval-lbl">${c.label}</span><span class="dval-v" style="${valStyle}">${esc(String(v))}</span></div>`;
+      }
     });
     html+=`</div>`;
+    // Plain English context — depth varies by difficulty level
+    // ADVANCED: nothing (raw data only — students who aced pre-brief work from fields alone)
+    // STANDARD: factual restatement — what the data IS, no anomaly flags
+    // FOUNDATION: interpretive — what's notable, with scaffolding
+    const _diff=GS.difficulty||0;
+    if(_diff<2){
+      const _map=_diff===0?SCENARIO_CONTEXT:SCENARIO_CONTEXT_STD;
+      const _ctxMap=_map&&_map[id];
+      if(_ctxMap){
+        const _ctx=_ctxMap[item.name+'|'+(item.ragAnswer||'')] || _ctxMap[item.name];
+        if(_ctx) html+=`<div class="dcard-context${_diff===1?' dcard-context-std':''}">${esc(_ctx)}</div>`;
+      }
+    }
     // Notes contain the reasoning/answer — only reveal AFTER the student has decided
     if(done&&item.notes){html+=`<div class="dcard-note">${esc(item.notes)}</div>`;}
     if(!done&&GS.scenarioRagDone){

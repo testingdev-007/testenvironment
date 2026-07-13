@@ -1056,6 +1056,7 @@ function getToolOptions(moduleId){
 var MODULE_COLUMNS = {
   packetAnalysis: [
     { key:'name',     label:'FLOW ID' },
+    { key:'purpose',  label:'DESCRIPTION' },
     { key:'srcIP',    label:'SOURCE IP' },
     { key:'protocol', label:'PROTOCOL' },
     { key:'dstPort',  label:'DEST PORT' },
@@ -1064,6 +1065,7 @@ var MODULE_COLUMNS = {
   ],
   encryptionAudit: [
     { key:'name',       label:'SYSTEM' },
+    { key:'purpose',    label:'DESCRIPTION' },
     { key:'algorithm',  label:'ALGORITHM' },
     { key:'keySize',    label:'KEY / OUTPUT' },
     { key:'useCase',    label:'USE CASE' },
@@ -1529,6 +1531,7 @@ if(typeof MODULE_LIST !== 'undefined'){
 // ── Column definitions for new modules ───────────────────────
 MODULE_COLUMNS.socialEngineering = [
   { key:'name',            label:'CASE ID'      },
+  { key:'purpose',         label:'SCENARIO'     },
   { key:'channel',         label:'CHANNEL'      },
   { key:'claimedIdentity', label:'CLAIMS TO BE' },
   { key:'asks',            label:'REQUESTS'     },
@@ -1537,6 +1540,7 @@ MODULE_COLUMNS.socialEngineering = [
 
 MODULE_COLUMNS.malwareAnalysis = [
   { key:'name',        label:'PROCESS'       },
+  { key:'purpose',     label:'DESCRIPTION'   },
   { key:'location',    label:'PATH TYPE'     },
   { key:'activity',    label:'KEY ACTIVITY'  },
   { key:'connections', label:'NETWORK'       },
@@ -1554,3 +1558,220 @@ MODULE_ACTIONS.malwareAnalysis = [
   { id:'investigate', label:'🔍 INVESTIGATE'     },
   { id:'allow',       label:'✅ ALLOW (LEGITIMATE)' },
 ];
+
+// ── PLAIN ENGLISH CONTEXT ─────────────────────────────────────
+// Neutral observer descriptions of each scenario — no judgment,
+// just what the data shows. Keyed by scenario name (or name|RAG
+// for SQL injection where the same endpoint appears as R, A, and G).
+if(typeof SCENARIO_CONTEXT==='undefined'){var SCENARIO_CONTEXT={};}
+
+SCENARIO_CONTEXT.packetAnalysis = {
+'FLOW-A1':"A single external IP is sending connection requests at roughly 47,000 per second. Each request begins the TCP handshake but none of them complete — no acknowledgement packets are coming back.",
+'FLOW-A2':"Small outbound DNS queries are being sent with TechCorp\'s IP as the source address, causing large DNS responses from multiple public servers to flood back into the network.",
+'FLOW-A3':"An external host is testing port numbers in ascending order — sending a brief packet to each one and moving to the next within milliseconds.",
+'FLOW-A4':"The network is receiving ICMP echo request packets from an external address at a rate far above what any diagnostic tool would generate.",
+'FLOW-A5':"Multiple external addresses are each starting TCP connections but never completing them — the server is allocating resources for connections that never finish their three-way handshake.",
+'FLOW-B1':"An SSH connection to an internal server was established from an IP address that appears in threat intelligence feeds as a known Tor exit node. The authentication completed successfully.",
+'FLOW-B2':"An authenticated session is active from an IP address geolocated in a country where TechCorp has no employees or offices.",
+'FLOW-B3':"An internal workstation is accessing network file shares via SMB and opening a large number of directories in a short period — including folders outside its normal business function.",
+'FLOW-C1':"An internal workstation is making HTTPS requests to external IPs associated with common cloud productivity services. Traffic volume and timing match normal business-hours activity.",
+'FLOW-C2':"Internal hosts are querying a known public DNS resolver. Query types and volumes match the pattern expected during normal working hours.",
+'FLOW-C3':"UDP packets are flowing between an internal server and an external address on port 123. Packet sizes and timing intervals are consistent with clock synchronisation.",
+'FLOW-C4':"The internal mail server is forwarding outbound messages to an external mail relay. Volumes and destination addresses match today\'s expected communications.",
+};
+
+SCENARIO_CONTEXT.encryptionAudit = {
+'db-auth-service':"This system uses an encryption algorithm with a 56-bit key length. Modern hardware can exhaustively test every possible key combination in a matter of hours.",
+'user-passwords-v1':"Passwords are processed using a fast general-purpose hashing function with no additional randomisation before hashing. The same password input always produces the same stored output.",
+'legacy-vpn-stream':"VPN sessions are encrypted using a stream cipher with known statistical weaknesses — certain output byte patterns are more predictable than a truly random stream would produce.",
+'api-key-exchange':"API authentication uses a 512-bit RSA key pair. The security of RSA depends on the difficulty of factoring large numbers — this key length has been successfully factored by researchers.",
+'cert-signing-internal':"Internal certificates are signed using a hashing algorithm for which researchers have demonstrated collision attacks — two different inputs can produce the same output hash.",
+'backup-encrypt-legacy':"Backup files are encrypted using three successive rounds of DES with an effective key strength of 112 bits. The underlying DES algorithm dates from the 1970s.",
+'file-store-aes128':"Documents are encrypted with AES-128 in CBC mode. The key length is within accepted ranges, but CBC mode produces identical ciphertext blocks for identical plaintext blocks and has no built-in integrity check.",
+'rsa-1024-signing':"Document signing uses 1024-bit RSA keys. This falls below the 2048-bit minimum now recommended by standards bodies for new implementations.",
+'db-encrypt-primary':"The primary database uses AES-256 in GCM mode — a configuration that provides both confidentiality and integrity verification in a single operation, meeting current standards.",
+'tls-key-exchange':"TLS sessions use 2048-bit RSA for key exchange. This meets current minimum recommendations from NIST and the NCSC.",
+'user-passwords-v2':"Passwords are stored using a function designed specifically for password hashing. Each stored value includes a unique random element, so identical passwords produce different outputs. Computation is deliberately slow.",
+'file-integrity-check':"File hashes are computed using SHA-256, producing a 256-bit output. No practical collision attack is known against this function at this output length.",
+};
+
+SCENARIO_CONTEXT.sqlInjection = {
+'/api/v1/auth/login|R':"The username field received input containing SQL comment syntax. The server returned a 200 OK and a valid session token — despite no matching account existing in the expected format.",
+'/search|R':"The search parameter contained a statement terminator followed by a destructive command. The server returned a 500 error and the product catalogue is no longer returning results.",
+'/api/v2/products|R':"The product ID parameter contained a UNION keyword and a SELECT clause. The server response included database field names and row data not normally returned by this endpoint.",
+'/admin/exec|R':"A POST request to the admin endpoint contained a raw SELECT query as the body. The server returned rows from an internal system table including credential data.",
+'/api/v1/user/profile|R':"The user ID parameter in the URL contained a condition that evaluates as true for every row. The response returned records for multiple users rather than a single profile.",
+'/forms/contact|A':"The email field in the contact form contained an apostrophe. The server returned a verbose error message that included a fragment of the underlying database query.",
+'/api/v3/search|A':"The search string contained SQL metacharacters that were not stripped before processing. The server response time was several seconds above the normal baseline for this endpoint.",
+'/api/v1/register|A':"The chosen username contained SQL syntax characters. The server returned a generic error, but the request appears in the audit log with a response time suggesting the database attempted to process it.",
+'/api/v1/auth/login|G':"Standard alphanumeric credentials in the expected format. The server validated them against stored values and returned a session token.",
+'/search|G':"A plain text search string with no special characters. The server returned a filtered product result set with response time within the normal range.",
+'/forms/contact|G':"A complete form submission with name, email, and message fields — all containing standard text with no SQL syntax or special characters in any field.",
+'/api/v2/products|G':"A product listing request with a standard numeric ID. The server returned the expected record and the response matched the documented API schema.",
+};
+
+SCENARIO_CONTEXT.firewallReview = {
+'CR-2025-0041':"If approved, SSH connections would be permitted from any IP address on the public internet to internal servers. Port 22 would be reachable from the entire address space without restriction.",
+'CR-2025-0044':"If approved, remote desktop connections would be accepted from any internet address. TCP port 3389 would be accessible to every external IP.",
+'CR-2025-0047':"If approved, internal hosts could initiate sessions using a protocol that transmits the entire connection — including any text entered — without encryption.",
+'CR-2025-0053':"If approved, a Finance workstation could make outbound connections on any TCP port to any external destination — no restriction on protocol, service, or target.",
+'CR-2025-0038':"If approved, hosts in the 192.168.50.0/24 subnet could reach the application server over HTTPS. That subnet is shared between developer workstations and guest Wi-Fi devices.",
+'CR-2025-0049':"If approved, developer workstations could connect outbound to any external address on TCP port 8080 — commonly used for web proxies, development servers, and some remote management tools.",
+'CR-2025-0055':"If approved, VNC remote-desktop connections would be accepted from a range covering contractor laptops assigned to third-party consultants on the internal network.",
+'CR-2025-0033':"If approved, any internet host could connect to the web server in the DMZ over HTTPS on port 443. That server hosts TechCorp\'s public-facing website.",
+'CR-2025-0036':"If approved, internal hosts could connect outbound over HTTPS to Microsoft\'s published IP address ranges, covering Microsoft 365, Teams, and Azure services.",
+'CR-2025-0039':"If approved, internal hosts could only send DNS queries to the company\'s own resolver addresses — all other DNS destinations would be blocked.",
+'CR-2025-0042':"If approved, inbound email on port 25 would be accepted from any internet source to the mail relay server in the DMZ — the standard path for receiving external email.",
+};
+
+SCENARIO_CONTEXT.legalCompliance = {
+'INC-2025-0014':"An employee installed software on a colleague\'s work device without their knowledge. The software recorded all keystrokes and forwarded them to the employee\'s home email address over four weeks.",
+'INC-2025-0019':"A former employee whose credentials were not revoked at their leaving date connected remotely to internal systems seven days later and accessed HR records including salary data.",
+'INC-2025-0022':"An employee with elevated server permissions ran software overnight that encrypted every file on three shared drives. A ransom note was found in each encrypted directory.",
+'INC-2025-0031':"A developer connected to the production database using a shared admin credential, bypassing the change-control process, and ran queries against a table containing live customer payment data.",
+'INC-2025-0035':"An employee configured their mail client to silently forward a manager\'s incoming email to their own inbox. Some messages were deleted before the manager saw them.",
+'INC-2025-0008':"A customer services employee extracted records from the CRM system across multiple sessions and provided them to a third-party marketing company. No data-sharing agreement existed for this purpose.",
+'INC-2025-0011':"A payroll spreadsheet listing gross salary, deductions, and net pay for all 340 employees was sent as an email attachment to the entire company all-staff distribution list.",
+'INC-2025-0026':"An audit found customer records from a project that ended in 2012, still stored on a network drive. The contract specified all data would be deleted within 24 months of project completion.",
+'INC-2025-0003':"A software audit found applications on an employee\'s company laptop not on the approved list and with no purchase or licence record. The tools were in active daily use.",
+'INC-2025-0007':"An analyst used their standard employee login to view their own personnel file to check their remaining holiday entitlement. No other records were accessed and nothing was exported.",
+'INC-2025-0016':"A trainee ran SELECT and INSERT queries on a development server isolated from production systems and containing only synthetic test data, using credentials issued for this purpose.",
+};
+
+SCENARIO_CONTEXT.socialEngineering = {
+'SE-001':"A caller identifying themselves as a named employee asked the IT help desk to reset an account password immediately, citing an emergency. They could not provide the standard verification answers when asked.",
+'SE-002':"An email appearing to come from the Finance Director asked the accounts team to transfer money to a new supplier within two hours. The sender\'s domain differed from the company domain by one character.",
+'SE-003':"An email addressed to a project lead by name referenced a live internal project using its correct code name and included a file described as an updated specification document.",
+'SE-004':"A USB drive was found in the company car park, labelled with a description likely to attract curiosity. Security camera footage shows an unknown individual placing it there the previous evening.",
+'SE-005':"An individual arrived at reception claiming to be a facilities contractor needing access to the server room. There is no record of a booked visit in the facilities management system.",
+'SE-006':"A message from a newly created profile asked a network engineer for details about the company\'s internal IP addressing scheme, citing a job application as the reason.",
+'SE-007':"An email with vendor branding stated that the company\'s cloud account had been flagged and would be suspended within 24 hours unless credentials were re-entered via a link in the email.",
+'SE-008':"A help desk ticket from an unfamiliar internal address asked IT to add a remote monitoring tool to the approved software list. It cited a senior manager\'s name but contained no project reference.",
+'SE-009':"A text message claiming to be from the company IT department asked all recipients to re-authenticate their accounts following a system migration by clicking a link. The sending number was not recognised.",
+'SE-010':"A password reset confirmation email arrived from the company\'s own IT portal, referencing a request the recipient had submitted through the self-service system ten minutes earlier.",
+'SE-011':"A new supplier onboarding form arrived via the company\'s procurement portal, requesting bank details for payment setup. It references the signed contract number and the supplier contact named in it.",
+'SE-012':"The facilities manager notified staff last week of a scheduled inspection today. An inspector arrived at reception, signed in through the visitor management system, and presented verifiable identification.",
+};
+
+SCENARIO_CONTEXT.malwareAnalysis = {
+'svchost_fake.exe':"A process named svchost.exe is running from a user\'s AppData\\Temp folder rather than the standard Windows\\System32 location. It has maintained an open connection to an external IP for six hours.",
+'keylog32.exe':"A background process with no visible window has been accessing the keyboard driver and clipboard at regular intervals. It has written data to a hidden folder and made repeated short outbound connections.",
+'update_helper.exe':"This process is enumerating accessible network shares and writing a copy of itself to each one it can reach. It has also created a new entry in the Windows registry startup key.",
+'pdf_viewer_pro.exe':"A process that appeared after a PDF viewer was downloaded is maintaining a persistent encrypted connection to an external server and responding to data received on that connection.",
+'sysmon_helper.exe':"This process is taking periodic screenshots and compressing them before sending them to an external address. It has also read files from the current user\'s Documents and Desktop folders.",
+'powershell.exe':"PowerShell launched at 03:14 with a long Base64-encoded string as its argument. It ran for four minutes, made two outbound web requests, then exited.",
+'chrome.exe (unusual)':"A Chrome process is making POST requests to an external API endpoint at roughly one per second — a rate several orders of magnitude above what a human browsing session produces.",
+'wscript.exe':"The Windows Script Host is executing a script file that arrived as an email attachment. The script has read the Outlook contacts list and queried an external domain via DNS.",
+'msiexec.exe (silent)':"An MSI package is being installed silently with no user prompt or progress window. The package is not on the approved software list and did not come through the central deployment system.",
+'MsMpEng.exe':"Windows Defender\'s scanning engine is running at elevated CPU usage from its standard System32 path. Activity coincides with the scheduled weekly full-system scan.",
+'wuauclt.exe':"The Windows Update client is downloading from Microsoft\'s update network. Traffic is going to known Microsoft CDN addresses and file sizes match this month\'s patch manifest.",
+'VeeamAgent.exe':"The Veeam backup agent is reading all files on the system drive. Activity started at 02:00 and matches the scheduled Sunday backup job, with data going to the company backup server.",
+};
+
+// ── STANDARD DIFFICULTY CONTEXT ───────────────────────────────
+// Factual restatement only — no anomaly flags, no significance.
+// Student has to recognise what is unusual themselves.
+if(typeof SCENARIO_CONTEXT_STD==='undefined'){var SCENARIO_CONTEXT_STD={};}
+
+SCENARIO_CONTEXT_STD.packetAnalysis = {
+'FLOW-A1':"47,200 TCP SYN packets per second from 45.92.14.7. Destination: port 80. No ACK responses in capture window.",
+'FLOW-A2':"Outbound DNS queries with TechCorp source IP. Large DNS responses arriving from multiple external servers.",
+'FLOW-A3':"Sequential port probing from external host — one packet per port, ascending order.",
+'FLOW-A4':"ICMP echo request packets from external source. High packet volume.",
+'FLOW-A5':"TCP SYN packets from multiple external IPs. No corresponding ACK or SYN-ACK responses completing the handshake.",
+'FLOW-B1':"SSH connection to internal server from IP in Tor exit node range. Authentication successful.",
+'FLOW-B2':"Authenticated session active. Source IP geolocated outside UK and EU. Connection encrypted.",
+'FLOW-B3':"Internal workstation querying network file shares via SMB. Multiple directory accesses in short period.",
+'FLOW-C1':"HTTPS traffic from internal workstation to external cloud service IPs. Port 443.",
+'FLOW-C2':"DNS A-record queries from internal hosts to public resolver. Standard volumes.",
+'FLOW-C3':"UDP port 123 traffic between internal server and external NTP host.",
+'FLOW-C4':"SMTP traffic from internal mail server to external relay. Standard forwarding pattern.",
+};
+
+SCENARIO_CONTEXT_STD.encryptionAudit = {
+'db-auth-service':"Authentication database. Algorithm: DES. Key length: 56 bits.",
+'user-passwords-v1':"Password store. Algorithm: MD5. No salt. One hash output per password.",
+'legacy-vpn-stream':"VPN session encryption. Algorithm: RC4 stream cipher.",
+'api-key-exchange':"API authentication. Algorithm: RSA. Key length: 512 bits.",
+'cert-signing-internal':"Internal certificate signing. Algorithm: SHA-1.",
+'backup-encrypt-legacy':"Backup file encryption. Algorithm: 3DES. Effective key strength: 112 bits.",
+'file-store-aes128':"Document store encryption. Algorithm: AES-128-CBC. Mode: Cipher Block Chaining.",
+'rsa-1024-signing':"Document signing. Algorithm: RSA. Key length: 1024 bits.",
+'db-encrypt-primary':"Primary database encryption. Algorithm: AES-256-GCM. Mode: Galois/Counter Mode with integrity check.",
+'tls-key-exchange':"TLS key exchange. Algorithm: RSA. Key length: 2048 bits.",
+'user-passwords-v2':"Password store. Algorithm: bcrypt. Work factor: 12. Unique salt per entry.",
+'file-integrity-check':"File integrity verification. Algorithm: SHA-256. Output: 256-bit digest.",
+};
+
+SCENARIO_CONTEXT_STD.sqlInjection = {
+'/api/v1/auth/login|R':"POST /api/v1/auth/login. Username field value: ' OR '1'='1' --. HTTP response: 200 OK, session token issued.",
+'/search|R':"GET /search?q=1; DROP TABLE orders; --. HTTP response: 500 Internal Server Error.",
+'/api/v2/products|R':"GET /api/v2/products?id=1 UNION SELECT username,pwd_hash FROM users --. Response: 200 with additional data fields.",
+'/admin/exec|R':"POST /admin/exec. Body contains SELECT query against system table. Response: 200 with row data.",
+'/api/v1/user/profile|R':"GET /api/v1/user/profile?id=1 OR 1=1. Response: multiple user records returned.",
+'/forms/contact|A':"POST /forms/contact. Email field contains apostrophe. Server returned 500 error including SQL fragment.",
+'/api/v3/search|A':"GET /api/v3/search?q=[special chars]. Response time: 4.2s. Baseline: 0.3s.",
+'/api/v1/register|A':"POST /api/v1/register. Username field contains SQL metacharacters. Response: 400. Appears in audit log.",
+'/api/v1/auth/login|G':"POST /api/v1/auth/login. Standard alphanumeric credentials. Response: 200 OK, session token issued.",
+'/search|G':"GET /search?q=blue+trainers. Alphanumeric query string. Response: 200, results within baseline response time.",
+'/forms/contact|G':"POST /forms/contact. All fields contain standard text characters. Response: 200 OK.",
+'/api/v2/products|G':"GET /api/v2/products?id=42. Numeric ID parameter. Response: 200, single product record.",
+};
+
+SCENARIO_CONTEXT_STD.firewallReview = {
+'CR-2025-0041':"Proposed: Allow inbound TCP 22 from 0.0.0.0/0 to internal servers.",
+'CR-2025-0044':"Proposed: Allow inbound TCP 3389 from 0.0.0.0/0 to internal hosts.",
+'CR-2025-0047':"Proposed: Allow outbound TCP 23 to any destination.",
+'CR-2025-0053':"Proposed: Allow outbound TCP 0-65535 from Finance workstation to any destination.",
+'CR-2025-0038':"Proposed: Allow inbound TCP 443 from 192.168.50.0/24 to app server. Subnet includes developer and guest devices.",
+'CR-2025-0049':"Proposed: Allow outbound TCP 8080 from developer workstations to any destination.",
+'CR-2025-0055':"Proposed: Allow inbound TCP 5900 from 10.20.0.0/16 to server farm. Range includes third-party contractor devices.",
+'CR-2025-0033':"Proposed: Allow inbound TCP 443 from 0.0.0.0/0 to web server in DMZ.",
+'CR-2025-0036':"Proposed: Allow outbound TCP 443 from internal hosts to Microsoft published IP ranges.",
+'CR-2025-0039':"Proposed: Allow outbound UDP 53 from internal hosts to company DNS servers only. All other DNS destinations blocked.",
+'CR-2025-0042':"Proposed: Allow inbound TCP 25 from 0.0.0.0/0 to mail relay in DMZ.",
+};
+
+SCENARIO_CONTEXT_STD.legalCompliance = {
+'INC-2025-0014':"Keylogging software found on colleague\'s workstation. Keystrokes forwarded to personal email. Period: 4 weeks.",
+'INC-2025-0019':"Former employee accessed internal systems remotely 7 days after leaving date. Credentials not revoked. Files accessed: HR records.",
+'INC-2025-0022':"File encryption software executed overnight by employee with elevated server permissions. Three shared drives encrypted.",
+'INC-2025-0031':"Developer connected to production database using shared admin credential. Queried customer payment table. No change-control approval.",
+'INC-2025-0035':"Email forwarding rule found on employee mail client. Manager\'s incoming email redirected to employee inbox. Some messages deleted.",
+'INC-2025-0008':"CRM records exported by customer services employee. Transferred to third-party marketing company. No data-sharing agreement.",
+'INC-2025-0011':"Payroll spreadsheet — 340 employees, salary data — sent to all-staff email distribution list.",
+'INC-2025-0026':"Customer data from 2012 project found on active network drive. Contract required deletion within 24 months of project end.",
+'INC-2025-0003':"Software on company laptop not on approved list. No purchase or licence record. In active daily use.",
+'INC-2025-0007':"Employee accessed own personnel record via standard login. Viewed annual leave balance. No other records accessed.",
+'INC-2025-0016':"Trainee ran SQL queries on development server containing synthetic test data. Training credentials used.",
+};
+
+SCENARIO_CONTEXT_STD.socialEngineering = {
+'SE-001':"Inbound call to IT help desk requesting account password reset. Caller unable to provide standard verification details.",
+'SE-002':"Email requesting £42,000 transfer to new supplier within 2 hours. Sender domain differs from company domain by one character.",
+'SE-003':"Email to project lead by name. References live internal project code. Attachment: updated specification document.",
+'SE-004':"USB drive in company car park. Label: Q4 Redundancy List. Placed by unknown individual previous evening.",
+'SE-005':"Individual at reception claiming to be HVAC contractor. Requesting server room access. No visit record in facilities system.",
+'SE-006':"Message requesting internal IP addressing scheme details. Sender profile created 3 days ago.",
+'SE-007':"Email with Microsoft branding. Claims Azure account flagged. Requests credential re-entry via link. Deadline: 24 hours.",
+'SE-008':"Help desk ticket requesting software whitelist addition. References senior manager. No project code or approval number.",
+'SE-009':"SMS requesting account re-authentication via link. Claims to be from company IT. Sending number not on record.",
+'SE-010':"Password reset email from company IT portal. References self-service request submitted 10 minutes earlier.",
+'SE-011':"Supplier onboarding form via procurement portal. Requests bank account details. References signed contract number.",
+'SE-012':"Fire safety inspector at reception. Visit pre-notified by facilities manager last week. Signed in, ID presented.",
+};
+
+SCENARIO_CONTEXT_STD.malwareAnalysis = {
+'svchost_fake.exe':"Process: svchost.exe. Path: AppData\\Local\\Temp. Outbound connection: active for 6 hours.",
+'keylog32.exe':"Background process, no window. Keyboard and clipboard access at regular intervals. Outbound connections. Encrypted output file.",
+'update_helper.exe':"Process enumerating network shares, writing copies to accessible shares. Registry startup key modified.",
+'pdf_viewer_pro.exe':"Process with persistent outbound encrypted connection. Receiving and responding to inbound data.",
+'sysmon_helper.exe':"Process capturing periodic screenshots. Compressing and sending to external address. Reading files from Documents and Desktop.",
+'powershell.exe':"PowerShell, 03:14. Argument: Base64-encoded string. Runtime: 4 min. Outbound connections: 2.",
+'chrome.exe (unusual)':"Chrome process. POST requests to external API. Rate: ~1 per second.",
+'wscript.exe':"Windows Script Host executing VBScript from email attachment. Outlook contacts accessed. External DNS query made.",
+'msiexec.exe (silent)':"MSI installation, /quiet flag. Package not on approved software list. Not deployed via central system.",
+'MsMpEng.exe':"MsMpEng.exe in System32. Elevated CPU. Timing matches scheduled scan window.",
+'wuauclt.exe':"Windows Update client. Downloading from Microsoft CDN addresses. File sizes match current patch cycle.",
+'VeeamAgent.exe':"Veeam agent reading system drive. Start time: 02:00. Destination: company backup server.",
+};
