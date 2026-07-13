@@ -261,11 +261,8 @@ function initMatrix(){
 }
 
 // ── UI HELPERS ────────────────────────────────────────────────
-function rHearts(){
-  const el=document.getElementById('heartsEl');el.innerHTML='';
-  for(let i=0;i<GS.maxH;i++){const s=document.createElement('span');s.className='heart'+(i>=GS.hearts?' lost':'');s.textContent='❤';el.appendChild(s);}
-}
-function loseH(why){try{SFX.wrong();}catch(e){}GS.livesLost=(GS.livesLost||0)+1;if(GS.hearts<=1){toast('Hanging on!','bad');return;}GS.hearts=Math.max(1,GS.hearts-1);rHearts();toast('-1 ❤  '+why,'bad');}
+function rHearts(){/* no-op — lives display removed */}
+function loseH(why){/* lives removed for Y12 — wrong actions still tracked for scoring */addXP(-5);if(why)toast(why,'bad');}
 function rXP(){document.getElementById('xpNum').textContent=GS.xp;document.getElementById('xpFill').style.width=Math.min(100,(GS.xp/500)*100)+'%';}
 function addXP(n){
   if(!n)return;
@@ -498,10 +495,14 @@ function _pbChatQ(){
 }
 
 window._pbChatAns=function(chosen){
+  // Guard: bail if _pb has been cleared or this question already answered
+  if(!_pb||!_pb.pool||!_pb.shuffled||_pb.answered)return;
+  _pb.answered=true;  // prevent double-fire on same question
+
   var correct=(chosen===_pb.correctIdx);
   if(correct)_pb.score++;
-  var hint=_pb.shuffled[_pb.correctIdx].hint;
-  var rightText=_pb.shuffled[_pb.correctIdx].text;
+  var hint=(_pb.shuffled[_pb.correctIdx]||{}).hint||'';
+  var rightText=(_pb.shuffled[_pb.correctIdx]||{}).text||'';
 
   // Style buttons in-place
   var msgEl=document.getElementById('pb-q-'+_pb.idx);
@@ -513,15 +514,22 @@ window._pbChatAns=function(chosen){
   }
   _pb.idx++;
 
-  // Feedback reply from a different persona
+  // Capture values NOW before any async gap
   var responder=pick(['zara','marcus','priya']);
   var fb=correct
     ? pick(['Correct. ','Right. ','Yes. '])+(hint||'')
     : 'No — '+(hint||rightText+'.');
+  var nextIdx=_pb.idx;
+  var poolLen=(_pb.pool||[]).length;
+
   setTimeout(function(){
     gcMsg(responder,fb,0);
-    if(_pb.idx<_pb.pool.length) setTimeout(_pbChatQ,900);
-    else setTimeout(_pbChatFinal,900);
+    if(nextIdx<poolLen){
+      _pb.answered=false;  // allow next question's answer
+      setTimeout(_pbChatQ,900);
+    } else {
+      setTimeout(_pbChatFinal,900);
+    }
   },250);
 };
 
@@ -571,7 +579,7 @@ function loadModule(id){
     return;
   }
   // Guard: close any stale plenary, clear chat for fresh mission
-  document.getElementById('plenaryModal').classList.remove('open');
+  var _elplenaryModal=document.getElementById('plenaryModal');if(_elplenaryModal)_elplenaryModal.classList.remove('open');
   GS.debriefModId=null;GS.plenReportDone=false;GS.plenQuizAnswered=0;GS.plenQuizTotal=0;
   GS.emailOpened=false;GS.stuckCount=0;clearStuckTimer();
   GS.round++;rRound();  // only real modules count
@@ -1149,10 +1157,10 @@ function showEndgame(){
 
 function resetAll(){
   /*vox*/clearTimeout(GS.autoTimer);clearTimeout(GS.stuckTimer);
-  document.getElementById('endOverlay').classList.remove('open');
-  document.getElementById('endSplash').classList.remove('open');
-  document.getElementById('ipOverlay').classList.remove('open');
-  document.getElementById('plenaryModal').classList.remove('open');
+  var _elendOverlay=document.getElementById('endOverlay');if(_elendOverlay)_elendOverlay.classList.remove('open');
+  var _elendSplash=document.getElementById('endSplash');if(_elendSplash)_elendSplash.classList.remove('open');
+  var _elipOverlay=document.getElementById('ipOverlay');if(_elipOverlay)_elipOverlay.classList.remove('open');
+  var _elplenaryModal=document.getElementById('plenaryModal');if(_elplenaryModal)_elplenaryModal.classList.remove('open');
   document.body.classList.remove('alert-mode');
   GS.briefingsSeen=new Set();
   GS.howToPlaySeen=false;
