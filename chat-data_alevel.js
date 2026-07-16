@@ -115,7 +115,7 @@ MODULE_GROUP_CHAT.encryptionAudit = {
   ],
   onStuck:[
     { persona:'priya',  msgs:['DES has a 56-bit key. Exhaustive search is feasible on commodity hardware today. Replace with AES-256.'] },
-    { persona:'zara',   msgs:['MD5 is fast and has collision vulnerabilities — both are fatal for password storage. Use bcrypt.'] },
+    { persona:'zara',   msgs:['Password hashing should use a slow algorithm designed for the purpose — fast general hashing algorithms are not suitable for passwords.'] },
     { persona:'marcus', msgs:['RSA security depends entirely on key size. RSA-512 can be factored in hours. NIST minimum is 2048.'] },
     { persona:'priya',  msgs:['SHA-1 had a practical collision attack published in 2017 (SHAttered). AMBER not RED — still some security, but schedule migration.'] },
   ],
@@ -130,7 +130,7 @@ MODULE_GROUP_CHAT.encryptionAudit = {
   ],
   onAllHandled:[
     { persona:'priya',  msgs:['Audit complete. Symmetric, asymmetric, hashing — use cases mapped to algorithms. That\'s the exam topic in practice.'] },
-    { persona:'marcus', msgs:['DES, MD5, RC4 = replace now. SHA-1, 3DES = schedule. AES-256-GCM, bcrypt, SHA-256 = maintain. Clean.'] },
+    { persona:'marcus', msgs:['Password hashing should use a slow algorithm designed for the purpose — fast general hashing algorithms are not suitable for passwords.'] },
   ],
 };
 
@@ -209,7 +209,7 @@ MODULE_GROUP_CHAT.legalCompliance = {
   onStuck:[
     { persona:'priya',  msgs:['CMA S3 covers intentional impairment — installing a keylogger, deploying malware, deleting data without authority.'] },
     { persona:'zara',   msgs:['DPA Principle 5: don\'t keep personal data longer than necessary. Principle 7: appropriate security measures. Both are enforceable.'] },
-    { persona:'marcus', msgs:['RIPA covers interception — capturing content in transit. Accessing stored emails is CMA S1. In transit is RIPA.'] },
+    { persona:'marcus', msgs:['The CMA covers unauthorised access — even reading someone else\'s data without permission is an offence.'] },
     { persona:'priya',  msgs:['For the ambiguous ones: criminal intent? CMA. Personal data at risk? DPA. No clear criminal element? Internal.'] },
   ],
   onHalfway:[
@@ -261,27 +261,26 @@ MODULE_GROUP_CHAT.socialEngineering = {
 // ── MALWARE BEHAVIOUR ANALYSIS ────────────────────────────────
 MODULE_GROUP_CHAT.malwareAnalysis = {
   onLoad_1:[
-    { persona:'priya',  msgs:['Endpoint detection alert. Behaviour + path + network activity — all three together tell the story.','Legitimate Windows system processes run from C:\\Windows\\System32. Anything with the same name elsewhere is spoofing.'] },
-    { persona:'marcus', msgs:['Wrong path = red flag. That single factor resolves most ambiguous cases.'] },
+    { persona:'priya',  msgs:['Endpoint security alert. For each flagged program, focus on three things: what it is doing, where it came from, and whether its network activity makes sense.','Ransomware encrypts files. Worms copy themselves to other devices. Trojans pretend to be something useful. Keyloggers capture what you type.'] },
+    { persona:'marcus', msgs:['Some of these are genuine threats. Some are legitimate programs doing their jobs. Your job is to tell them apart.'] },
   ],
   onLoad_2:[
-    { persona:'zara',   msgs:['For each entry: is the path legitimate? Is the behaviour consistent with the claimed function? Are the connections expected?'] },
-    { persona:'priya',  msgs:['Ransomware = high file write rate, new extensions. Worm = lateral spread. Trojan = reverse shell. Keylogger = keyboard API + exfil.'] },
+    { persona:'zara',   msgs:['For each entry: what is this program actually doing? Does that match what a legitimate version of it should do? Is it sending data somewhere unexpected?'] },
+    { persona:'priya',  msgs:['Think about the malware types on the spec — ransomware, worm, trojan, virus, spyware, keylogger. What behaviour would each one show?'] },
   ],
   onStuck:[
-    { persona:'priya',  msgs:['C:\\Windows\\System32 = legitimate. C:\\Users\\...\\AppData\\Temp = not legitimate for any system process.'] },
-    { persona:'zara',   msgs:['Periodic outbound connections to a non-business IP on a fixed schedule = command and control channel.'] },
-    { persona:'marcus', msgs:['MsMpEng.exe + high CPU = Windows Defender scan. wuauclt.exe + Microsoft CDN = Windows Update. Both GREEN.'] },
-    { persona:'priya',  msgs:['PowerShell with -ExecutionPolicy Bypass and -EncodedCommand: no legitimate admin script needs both flags.'] },
+    { persona:'priya',  msgs:['Look at what the program is doing: encrypting files, copying itself, recording keystrokes, or sending data out. Each of these points to a specific malware type.'] },
+    { persona:'zara',   msgs:['Legitimate security software and backup tools do high-activity jobs too — the difference is they do it at scheduled times, to known destinations, and you installed them deliberately.'] },
+    { persona:'marcus', msgs:['If a program is connecting to an external server at regular intervals and you did not install it, that is worth investigating.'] },
   ],
   onHalfway:[
-    { persona:'marcus', msgs:['Halfway. Wrong path, C2 connections, mass file writes, SMB spread — real detection signatures, not theoretical ones.'] },
-    { persona:'priya',  msgs:['GREEN cases: known process, correct path, expected behaviour, known destinations. Any deviation is signal.'] },
+    { persona:'marcus', msgs:['Halfway through. Remember: the GREEN items are real programs doing legitimate jobs. Not everything flagged is a threat.'] },
+    { persona:'priya',  msgs:['Ransomware, worm, trojan, keylogger, spyware, virus — all on the OCR spec. Make sure you can identify each one from its behaviour.'] },
   ],
   onActionWrong:[
-    { persona:'priya',  msgs:['Re-examine the path. That one factor resolves most cases — system processes don\'t live in Temp folders.'] },
-    { persona:'zara',   msgs:['Is the activity rate consistent with legitimate use? 8,000 file writes per minute is not a backup.'] },
-    { persona:'marcus', msgs:['Timing matters. A hidden PowerShell task at 3am is not scheduled maintenance.'] },
+    { persona:'priya',  msgs:['Look again at what the program is actually doing — that is the key indicator. What malware type does that behaviour match?'] },
+    { persona:'zara',   msgs:['Is the network activity consistent with what this program is supposed to do? Regular connections to an unknown external address are a red flag.'] },
+    { persona:'marcus', msgs:['Think about the source: where did this program come from? Legitimate software comes from known publishers and official sources.'] },
   ],
   onAllHandled:[
     { persona:'priya',  msgs:['All processes triaged. Path + behaviour + network: those three tell the full story.'] },

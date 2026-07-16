@@ -173,12 +173,23 @@ function startStuckTimer(){
   GS.stuckTimer=setTimeout(function fireStuck(){
     const pool=(MODULE_GROUP_CHAT[GS.modId]||{}).onStuck;
     if(pool&&pool.length){
-      const e=pool[Math.min(GS.stuckCount,pool.length-1)];
-      gcMsg(e.persona,pick(e.msgs));
+      var _si=Math.min(GS.stuckCount,pool.length-1);
+      var _hk=GS.modId+'_stuck_'+_si;
+      // Only show each hint once per module session
+      if(!GS.shownHints.has(_hk)){
+        GS.shownHints.add(_hk);
+        const e=pool[_si];
+        gcMsg(e.persona,pick(e.msgs));
+        GS.stuckCount++;
+        // Schedule next hint only if more remain
+        if(GS.stuckCount<pool.length)
+          GS.stuckTimer=setTimeout(fireStuck, 45000);
+        return;
+      }
       GS.stuckCount++;
     }
-    // Fire again after progressively longer delay
-    GS.stuckTimer=setTimeout(fireStuck, 18000);
+    if(GS.stuckCount<(pool?pool.length:0))
+      GS.stuckTimer=setTimeout(fireStuck, 45000);
   },14000);
 }
 function clearStuckTimer(){
@@ -235,10 +246,11 @@ function _boot(){
   if(!GS.briefingsSeen)GS.briefingsSeen=new Set();
   initMatrix();
   rHearts();rXP();rRound();setStep(0);
-  document.getElementById('btnRefresh').classList.add('pulse-glow');
   gcMsg('zara',  pick(GENERAL_GROUP_CHAT.welcome[0].msgs),700);
   gcMsg('marcus',pick(GENERAL_GROUP_CHAT.welcome[1].msgs),4000);
   gcMsg('priya', pick(GENERAL_GROUP_CHAT.welcome[2].msgs),8000);
+  // Auto-start: dispatch first module after welcome messages settle
+  setTimeout(function(){ if(!GS.active){ refreshInbox(); } }, 10000);
   idleLoop();
 }
 // Handles both normal <script> loading and dynamic loading via loader.js
@@ -353,7 +365,10 @@ function refreshInbox(){
   if(GS.round>=GS.totalRounds&&!GS.queue.length){showEndgame();return;}
   if(GS.forceMod){const m=GS.forceMod;GS.forceMod=null;dispatchMod(m);return;}
   if(!GS.queue.length)buildQueue();
-  dispatchMod(GS.queue.shift());
+  var _nextMod=GS.queue.shift();
+  dispatchMod(_nextMod);
+  // After pre-brief+loadModule adds email, auto-open it
+  // (selectInboxEmail + actOnSelectedEmail run when email appears)
   }catch(err){
     console.error('refreshInbox error:',err);
     var b=document.getElementById('__errbox');
@@ -586,7 +601,7 @@ function loadModule(id){
   // Guard: close any stale plenary, clear chat for fresh mission
   var _elplenaryModal=document.getElementById('plenaryModal');if(_elplenaryModal)_elplenaryModal.classList.remove('open');
   GS.debriefModId=null;GS.plenReportDone=false;GS.plenQuizAnswered=0;GS.plenQuizTotal=0;
-  GS.emailOpened=false;GS.stuckCount=0;clearStuckTimer();
+  GS.emailOpened=false;GS.stuckCount=0;GS.stuckStep=0;GS.shownHints=new Set();GS.lastHintTime=0;clearStuckTimer();
   GS.round++;rRound();  // only real modules count
   GS.modId=id;GS.correctTool=mod.tools.correct;GS.toolOk=false;
   GS.reportReady=false;GS.badTools=0;GS.active=true;
@@ -652,8 +667,11 @@ function addToInbox(email){
     if(!email.phish){showEmailContent(email);setStep(2);}
   });
   list.insertBefore(el,list.firstChild);
-  // Select and highlight in inbox (buttons enabled), but do NOT auto-open email pane
-  setTimeout(()=>selectInboxEmail(email.id, email),350);
+  // Auto-select AND auto-open email (no manual click required)
+  setTimeout(()=>{
+    selectInboxEmail(email.id, email);
+    if(!email.phish){ showEmailContent(email); setStep(2); }
+  },350);
 }
 
 function selectInboxEmail(id, email){
@@ -961,6 +979,19 @@ function renderDebriefButton(){
 }
 
 // Opened by child clicking the debrief button — captures modId RIGHT NOW, no timer race
+function _nextCase(){
+  // Clear debrief state
+  window._dbQuizAns={};
+  window._dbQuizSubmitted=false;
+  window._dbRouteDone=false;
+  if(GS.round>=GS.totalRounds&&!GS.queue.length){
+    showEndgame();return;
+  }
+  var _who=pick(['priya','zara','marcus']);
+  gcMsg(_who,'Case closed. Next assignment incoming.');
+  setTimeout(function(){ refreshInbox(); }, 1800);
+}
+
 function openDebrief(){
   const savedId=GS.modId;
   const savedScenario=GS.scenario?[...GS.scenario]:[];
@@ -1066,6 +1097,7 @@ function showResults(savedId){
   }
 
   h+='<div id="dbEndSlot"></div>';
+  if(!qSel.length) h+='<button class="db-submit" style="margin-top:16px;" onclick="_nextCase()">NEXT CASE &rarr;</button>';
 
   document.getElementById('resultsView').innerHTML=h;
   showTab('R');
@@ -1116,7 +1148,8 @@ function showResults(savedId){
     var sc=score===tot?'#00ff99':score>=tot/2?'var(--g)':'var(--amb)';
     if(sub){
       sub.outerHTML='<div class="db-quiz-result"><div class="db-qr-score" style="color:'+sc+'">'+score+'/'+tot+' correct</div>'+
-        (xp?'<div class="db-qr-xp">+'+xp+' XP</div>':'')+'</div>';
+        (xp?'<div class="db-qr-xp">+'+xp+' XP</div>':'')+'</div>'+
+        '<button class="db-submit" style="margin-top:16px;" onclick="_nextCase()">NEXT CASE &rarr;</button>';
     }
     GS.quizCorrect=(GS.quizCorrect||0)+score;
     GS.quizTotal=(GS.quizTotal||0)+tot;
@@ -1186,7 +1219,7 @@ function resetAll(){
   document.body.classList.remove('alert-mode');
   GS.briefingsSeen=new Set();
   GS.howToPlaySeen=false;
-  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,difficulty:1,preBriefDone:new Set(),queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,difficulty:1,preBriefDone:new Set(),difficulty:1,preBriefDone:new Set(),selectedEmailId:null,emailOpened:false,briefingsSeen:new Set(),stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
+  Object.assign(GS,{hearts:GS.maxH,xp:0,round:0,modId:null,scenario:null,correctTool:null,toolOk:false,reportReady:false,active:false,phishDone:false,ipDone:false,difficulty:1,preBriefDone:new Set(),shownHints:new Set(),lastHintTime:0,queue:[],forceMod:null,badTools:0,sessId:uid(),scenarioRagDone:true,ip:{},gfr:null,autoTimer:null,stuckTimer:null,stuckStep:0,pendingEmail:null,debriefModId:null,plenReportDone:false,plenQuizAnswered:0,plenQuizTotal:0,quizCorrect:0,quizTotal:0,phishReported:false,ipWon:false,livesLost:0,difficulty:1,preBriefDone:new Set(),shownHints:new Set(),lastHintTime:0,difficulty:1,preBriefDone:new Set(),shownHints:new Set(),lastHintTime:0,selectedEmailId:null,emailOpened:false,briefingsSeen:new Set(),stuckCount:0,stuckTimer:null,sessionFlags:{allGreenUsed:false,highEscalationUsed:false,lastWasLow:false}});
   rHearts();rXP();rRound();
   document.getElementById('ilist').innerHTML=`<div id="ilistEmpty" style="padding:16px;font-size:15px;color:rgba(0,255,65,.35);text-align:center;line-height:2.4;">No alerts yet.<br><span style="color:var(--g);font-size:14px;">▲ Check the alert queue above to begin.</span></div>`;
   document.getElementById('welcomeMsg').style.display='block';document.getElementById('emailView').style.display='none';
